@@ -5,7 +5,7 @@ import com.bookstore.exception.DuplicateISBNException;
 import com.bookstore.model.Author;
 import com.bookstore.model.Book;
 import com.bookstore.repository.BookRepository;
-import com.bookstore.validator.BookValidator;
+import com.bookstore.service.BookValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
