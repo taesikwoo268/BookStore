@@ -1,4 +1,4 @@
-package com.bookstore.validator;
+package com.bookstore.service;
 
 import com.bookstore.model.Book;
 
