@@ -31,6 +31,6 @@ public class BookUpdateRequest {
     @Min(value = 0, message = "Stock must be non-negative")
     private Integer stock;
 
-    private List<Long> authorIds;
+    private Long authorId;
     private Long categoryId;
 }

@@ -7,8 +7,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
 
 @Entity
 @Table(name = "books")
@@ -33,14 +31,9 @@ public class Book {
 
     private Integer salesCount;
 
-    @ManyToMany
-    @JoinTable(
-            name = "book_authors",
-            joinColumns = @JoinColumn(name = "book_id"),
-            inverseJoinColumns = @JoinColumn(name = "author_id")
-    )
-    @Builder.Default
-    private List<Author> authors = new ArrayList<>();
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "author_id")
+    private Author author;
 
     @ManyToOne
     @JoinColumn(name = "category_id")

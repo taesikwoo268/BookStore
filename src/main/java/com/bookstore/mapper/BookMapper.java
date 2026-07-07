@@ -1,24 +1,35 @@
 package com.bookstore.mapper;
 
+import com.bookstore.dto.request.BookCreateRequest;
+import com.bookstore.dto.request.BookUpdateRequest;
+import com.bookstore.dto.response.BookDetailResponse;
+import com.bookstore.dto.response.BookResponse;
+import com.bookstore.dto.response.BookSummaryResponse;
 import com.bookstore.model.Book;
-import com.bookstore.model.Author;
-import com.bookstore.model.Category;
+import org.mapstruct.*;
 
-import java.math.BigDecimal;
+import org.springframework.stereotype.Component;
+
 import java.util.List;
 
-// DTO nếu cần, ở đây tôi chỉ tạo phương thức tiện ích
-public class BookMapper {
-    public static Book toBook(String isbn, String title, BigDecimal price, Integer stock,
-                              List<Author> authors, Category category) {
-        return Book.builder()
-                .isbn(isbn)
-                .title(title)
-                .price(price)
-                .stock(stock)
-                .salesCount(0)
-                .authors(authors)
-                .category(category)
-                .build();
-    }
+
+@Component
+@Mapper(
+        componentModel = "spring",
+        unmappedTargetPolicy = ReportingPolicy.IGNORE
+)
+public interface BookMapper {
+
+     Book toEntity(BookCreateRequest request);
+
+     void updateEntity(@MappingTarget Book existingBook, BookUpdateRequest request);
+
+     BookResponse toResponse(Book book);
+
+     BookSummaryResponse toSummaryResponse(Book book);
+
+     BookDetailResponse toDetailResponse(Book book);
+
+     List<BookSummaryResponse> toSummaryList(List<Book> books);
+
 }

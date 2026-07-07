@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -20,8 +19,6 @@ public class BookResponse {
     private BigDecimal price;
     private Integer stock;
     private Integer salesCount;
-    private List<AuthorSummaryResponse> authors;
+    private AuthorSummaryResponse author;
     private CategorySummaryResponse category;
-    private LocalDateTime createdAt;
-    private LocalDateTime updatedAt;
 }

@@ -1,24 +1,26 @@
 package com.bookstore.service;
 
+import com.bookstore.dto.request.BookCreateRequest;
+import com.bookstore.dto.request.BookUpdateRequest;
 import com.bookstore.exception.BookNotFoundException;
 import com.bookstore.exception.DuplicateISBNException;
+import com.bookstore.mapper.BookMapper;
 import com.bookstore.model.Author;
 import com.bookstore.model.Book;
 import com.bookstore.repository.BookRepository;
-import com.bookstore.service.BookValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class BookService {
     private final BookRepository bookRepository;
+    private final BookMapper bookMapper;
 
     public List<Book> getAllBooks() {
         return bookRepository.findAll();
@@ -28,7 +30,8 @@ public class BookService {
         return bookRepository.findById(id).orElseThrow(() -> new BookNotFoundException("Book not found with id: " + id));
     }
 
-    public Book addBook(Book book) {
+    public Book createBook(BookCreateRequest request) {
+        Book book = bookMapper.toEntity(request);
         BookValidator.validate(book);
         if (bookRepository.existsByIsbn(book.getIsbn())) {
             throw new DuplicateISBNException("Book with ISBN " + book.getIsbn() + " already exists");
@@ -36,17 +39,20 @@ public class BookService {
         return bookRepository.save(book);
     }
 
-    public Book updateBook(Long id, Book updatedBook) {
-        Book existing = bookRepository.findById(id)
-                .orElseThrow(() -> new BookNotFoundException("Book not found with id: " + id));
-        BookValidator.validate(updatedBook);
-        // Kiểm tra ISBN trùng (trừ chính nó)
-        if (!existing.getIsbn().equals(updatedBook.getIsbn()) &&
-                bookRepository.existsByIsbn(updatedBook.getIsbn())) {
-            throw new DuplicateISBNException("ISBN " + updatedBook.getIsbn() + " already used by another book");
+    public Book updateBook(Long id, BookUpdateRequest request) {
+        Book existing = getBookById(id);
+
+        // Check duplicate ISBN (excluding itself)
+        if (!existing.getIsbn().equals(request.getIsbn()) &&
+                bookRepository.existsByIsbn(request.getIsbn())) {
+            throw new DuplicateISBNException("ISBN " + request.getIsbn() + " already used by another book");
         }
-        updatedBook.setId(id);
-        return bookRepository.save(updatedBook);
+
+        // Map update request to existing entity
+        bookMapper.updateEntity(existing, request);
+        BookValidator.validate(existing);
+
+        return bookRepository.save(existing);
     }
 
     public void deleteBook(Long id) {
@@ -64,7 +70,7 @@ public class BookService {
         return bookRepository.findAll().stream()
                 .filter(b -> b.getTitle().toLowerCase().contains(lowerKeyword) ||
                         b.getIsbn().contains(keyword) ||
-                        (b.getAuthors() != null && b.getAuthors().stream().map(Author::getName).anyMatch(name -> name.toLowerCase().contains(lowerKeyword))) ||
+                        (b.getAuthor() != null && b.getAuthor().getName().toLowerCase().contains(lowerKeyword)) ||
                         (b.getCategory() != null && b.getCategory().getName().toLowerCase().contains(lowerKeyword)))
                 .collect(Collectors.toList());
     }

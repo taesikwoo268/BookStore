@@ -25,7 +25,7 @@ public class Author {
 
     private String biography;
 
-    @ManyToMany(mappedBy = "authors")
+    @OneToMany(mappedBy = "author")
     @Builder.Default
     private List<Book> books = new ArrayList<>();
 }

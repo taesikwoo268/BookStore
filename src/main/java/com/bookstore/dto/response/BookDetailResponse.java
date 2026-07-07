@@ -12,13 +12,13 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class BookSummaryResponse {
+public class BookDetailResponse {
     private Long id;
     private String isbn;
     private String title;
     private BigDecimal price;
     private Integer stock;
     private Integer salesCount;
-    private String authorName;
-    private String categoryName;
+    private AuthorDetailResponse author;
+    private CategoryDetailResponse category;
 }

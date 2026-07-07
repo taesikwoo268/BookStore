@@ -31,8 +31,8 @@ public class BookCreateRequest {
     @Min(value = 0, message = "Stock must be non-negative")
     private Integer stock;
 
-    @NotEmpty(message = "At least one author ID is required")
-    private List<Long> authorIds;
+    @NotNull(message = "Author ID is required")
+    private Long authorId;
 
     @NotNull(message = "Category ID is required")
     private Long categoryId;
