@@ -2,6 +2,7 @@ package com.bookstore.controller;
 
 import com.bookstore.dto.request.BookCreateRequest;
 import com.bookstore.dto.request.BookUpdateRequest;
+import com.bookstore.dto.response.ApiResponse;
 import com.bookstore.dto.response.BookDetailResponse;
 import com.bookstore.dto.response.BookResponse;
 import com.bookstore.dto.response.BookSummaryResponse;
@@ -27,56 +28,61 @@ public class BookController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public BookResponse createBook(@Valid @RequestBody BookCreateRequest request) {
+    public ApiResponse<BookResponse> createBook(@Valid @RequestBody BookCreateRequest request) {
         Book book = bookService.createBook(request);
-        return bookMapper.toResponse(book);
+        return ApiResponse.success("Book created successfully", bookMapper.toResponse(book));
     }
 
     @PutMapping("/{id}")
-    public BookResponse updateBook(@PathVariable Long id, @Valid @RequestBody BookUpdateRequest request) {
+    public ApiResponse<BookResponse> updateBook(@PathVariable Long id, @Valid @RequestBody BookUpdateRequest request) {
         Book book = bookService.updateBook(id, request);
-        return bookMapper.toResponse(book);
+        return ApiResponse.success("Book updated successfully", bookMapper.toResponse(book));
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteBook(@PathVariable Long id) {
+    public ApiResponse<Void> deleteBook(@PathVariable Long id) {
         bookService.deleteBook(id);
+        return ApiResponse.success("Book deleted successfully");
     }
 
     @GetMapping("/{id}")
-    public BookDetailResponse getBookById(@PathVariable Long id) {
+    public ApiResponse<BookDetailResponse> getBookById(@PathVariable Long id) {
         Book book = bookService.getBookById(id);
-        return bookMapper.toDetailResponse(book);
+        return ApiResponse.success(bookMapper.toDetailResponse(book));
     }
 
     @GetMapping
-    public List<BookSummaryResponse> getAllBooks() {
-        return bookMapper.toSummaryList(bookService.getAllBooks());
+    public ApiResponse<List<BookSummaryResponse>> getAllBooks() {
+        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.getAllBooks());
+        return ApiResponse.success(books);
     }
 
     @GetMapping("/search")
-    public List<BookSummaryResponse> searchBooks(@RequestParam(required = false) String keyword) {
-        return bookMapper.toSummaryList(bookService.searchBook(keyword));
+    public ApiResponse<List<BookSummaryResponse>> searchBooks(@RequestParam(required = false) String keyword) {
+        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.searchBook(keyword));
+        return ApiResponse.success(books);
     }
 
     @GetMapping("/filter/price")
-    public List<BookSummaryResponse> filterByPrice(@RequestParam(required = false) BigDecimal from,
-                                                   @RequestParam(required = false) BigDecimal to) {
-        return bookMapper.toSummaryList(bookService.filterByPrice(from, to));
+    public ApiResponse<List<BookSummaryResponse>> filterByPrice(@RequestParam(required = false) BigDecimal from,
+                                                                @RequestParam(required = false) BigDecimal to) {
+        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.filterByPrice(from, to));
+        return ApiResponse.success(books);
     }
 
     @GetMapping("/group-by-category")
-    public Map<String, List<BookSummaryResponse>> groupByCategory() {
-        return bookService.groupByCategory().entrySet().stream()
+    public ApiResponse<Map<String, List<BookSummaryResponse>>> groupByCategory() {
+        Map<String, List<BookSummaryResponse>> grouped = bookService.groupByCategory().entrySet().stream()
                 .collect(Collectors.toMap(
                         Map.Entry::getKey,
                         e -> bookMapper.toSummaryList(e.getValue())
                 ));
+        return ApiResponse.success(grouped);
     }
 
     @GetMapping("/top5")
-    public List<BookSummaryResponse> getTop5BestSellers() {
-        return bookMapper.toSummaryList(bookService.top5BestSellers());
+    public ApiResponse<List<BookSummaryResponse>> getTop5BestSellers() {
+        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.top5BestSellers());
+        return ApiResponse.success(books);
     }
 }

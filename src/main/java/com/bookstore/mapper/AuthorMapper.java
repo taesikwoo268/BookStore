@@ -1,5 +1,6 @@
 package com.bookstore.mapper;
 
+import com.bookstore.dto.response.AuthorDetailResponse;
 import com.bookstore.dto.response.AuthorSummaryResponse;
 import com.bookstore.model.Author;
 import org.mapstruct.Mapper;
@@ -15,6 +16,8 @@ import java.util.List;
 public interface AuthorMapper {
 
     AuthorSummaryResponse toSummaryResponse(Author author);
+
+    AuthorDetailResponse toDetailResponse(Author author);
 
     List<AuthorSummaryResponse> toSummaryList(List<Author> authors);
 

@@ -26,6 +26,8 @@ public interface BookMapper {
 
      BookResponse toResponse(Book book);
 
+     @Mapping(target = "authorName", source = "author.name")
+     @Mapping(target = "categoryName", source = "category.name")
      BookSummaryResponse toSummaryResponse(Book book);
 
      BookDetailResponse toDetailResponse(Book book);

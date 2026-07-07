@@ -1,7 +1,10 @@
 package com.bookstore.controller;
 
+import com.bookstore.dto.response.ApiResponse;
+import com.bookstore.dto.response.AuthorDetailResponse;
+import com.bookstore.dto.response.AuthorSummaryResponse;
+import com.bookstore.mapper.AuthorMapper;
 import com.bookstore.model.Author;
-import com.bookstore.model.Book;
 import com.bookstore.service.AuthorService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,41 +17,42 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AuthorController {
     private final AuthorService authorService;
+    private final AuthorMapper authorMapper;
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public Author createAuthor(@RequestBody Author author) {
-        return authorService.createAuthor(author);
+    public ApiResponse<AuthorSummaryResponse> createAuthor(@RequestBody Author author) {
+        Author saved = authorService.createAuthor(author);
+        return ApiResponse.success("Author created successfully", authorMapper.toSummaryResponse(saved));
     }
 
     @PutMapping("/{id}")
-    public Author updateAuthor(@PathVariable Long id, @RequestBody Author author) {
-        return authorService.updateAuthor(id, author);
+    public ApiResponse<AuthorSummaryResponse> updateAuthor(@PathVariable Long id, @RequestBody Author author) {
+        Author updated = authorService.updateAuthor(id, author);
+        return ApiResponse.success("Author updated successfully", authorMapper.toSummaryResponse(updated));
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteAuthor(@PathVariable Long id) {
+    public ApiResponse<Void> deleteAuthor(@PathVariable Long id) {
         authorService.deleteAuthor(id);
+        return ApiResponse.success("Author deleted successfully");
     }
 
     @GetMapping("/{id}")
-    public Author getAuthorById(@PathVariable Long id) {
-        return authorService.getAuthorById(id);
+    public ApiResponse<AuthorDetailResponse> getAuthorById(@PathVariable Long id) {
+        Author author = authorService.getAuthorById(id);
+        return ApiResponse.success(authorMapper.toDetailResponse(author));
     }
 
     @GetMapping
-    public List<Author> getAllAuthors() {
-        return authorService.getAllAuthors();
+    public ApiResponse<List<AuthorSummaryResponse>> getAllAuthors() {
+        List<AuthorSummaryResponse> authors = authorMapper.toSummaryList(authorService.getAllAuthors());
+        return ApiResponse.success(authors);
     }
 
     @GetMapping("/search")
-    public List<Author> searchAuthors(@RequestParam String keyword) {
-        return authorService.searchAuthors(keyword);
-    }
-
-    @GetMapping("/{id}/books")
-    public List<Book> getBooksByAuthor(@PathVariable Long id) {
-        return authorService.getBooksByAuthor(id);
+    public ApiResponse<List<AuthorSummaryResponse>> searchAuthors(@RequestParam String keyword) {
+        List<AuthorSummaryResponse> authors = authorMapper.toSummaryList(authorService.searchAuthors(keyword));
+        return ApiResponse.success(authors);
     }
 }

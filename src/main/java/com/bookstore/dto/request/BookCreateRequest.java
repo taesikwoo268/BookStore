@@ -1,5 +1,6 @@
 package com.bookstore.dto.request;
 
+import com.bookstore.validation.ValidISBN;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,8 +16,8 @@ import java.util.List;
 @AllArgsConstructor
 public class BookCreateRequest {
 
+    @ValidISBN(message = "Invalid ISBN format")
     @NotBlank(message = "ISBN is required")
-    @Size(min = 10, max = 20, message = "ISBN must be between 10 and 20 characters")
     private String isbn;
 
     @NotBlank(message = "Title is required")

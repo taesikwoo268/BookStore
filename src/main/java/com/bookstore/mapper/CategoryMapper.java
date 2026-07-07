@@ -1,5 +1,6 @@
 package com.bookstore.mapper;
 
+import com.bookstore.dto.response.CategoryDetailResponse;
 import com.bookstore.dto.response.CategorySummaryResponse;
 import com.bookstore.model.Category;
 import org.mapstruct.Mapper;
@@ -14,6 +15,8 @@ import java.util.List;
 public interface CategoryMapper {
 
     CategorySummaryResponse toSummaryResponse(Category category);
+
+    CategoryDetailResponse toDetailResponse(Category category);
 
     List<CategorySummaryResponse> toSummaryList(List<Category> categories);
 
