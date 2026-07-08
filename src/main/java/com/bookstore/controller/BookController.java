@@ -1,11 +1,9 @@
 package com.bookstore.controller;
 
 import com.bookstore.dto.request.BookCreateRequest;
+import com.bookstore.dto.request.BookFilterRequest;
 import com.bookstore.dto.request.BookUpdateRequest;
-import com.bookstore.dto.response.ApiResponse;
-import com.bookstore.dto.response.BookDetailResponse;
-import com.bookstore.dto.response.BookResponse;
-import com.bookstore.dto.response.BookSummaryResponse;
+import com.bookstore.dto.response.*;
 import com.bookstore.mapper.BookMapper;
 import com.bookstore.model.Book;
 import com.bookstore.service.BookService;
@@ -20,7 +18,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/books")
+@RequestMapping("/api/v1/books")
 @RequiredArgsConstructor
 public class BookController {
     private final BookService bookService;
@@ -51,11 +49,11 @@ public class BookController {
         return ApiResponse.success(bookMapper.toDetailResponse(book));
     }
 
-    @GetMapping
-    public ApiResponse<List<BookSummaryResponse>> getAllBooks() {
-        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.getAllBooks());
-        return ApiResponse.success(books);
-    }
+//    @GetMapping
+//    public ApiResponse<List<BookSummaryResponse>> getAllBooks() {
+//        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.getAllBooks());
+//        return ApiResponse.success(books);
+//    }
 
     @GetMapping("/search")
     public ApiResponse<List<BookSummaryResponse>> searchBooks(@RequestParam(required = false) String keyword) {
@@ -84,5 +82,43 @@ public class BookController {
     public ApiResponse<List<BookSummaryResponse>> getTop5BestSellers() {
         List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.top5BestSellers());
         return ApiResponse.success(books);
+    }
+
+    @GetMapping
+    public ApiResponse<PageResponse<BookSummaryResponse>> getBooksWithFilter(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String genre,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice) {
+
+        // Build filter request
+        BookFilterRequest filter = BookFilterRequest.builder()
+                .page(page)
+                .size(size)
+                .sort(sort)
+                .genre(genre)
+                .minPrice(minPrice)
+                .maxPrice(maxPrice)
+                .build();
+
+        // Get paginated books
+        PageResponse<Book> pageResult = bookService.getBooksWithFilter(filter);
+
+        // Convert to DTO
+        PageResponse<BookSummaryResponse> pageResponse = PageResponse.<BookSummaryResponse>builder()
+                .content(bookMapper.toSummaryList(pageResult.getContent()))
+                .pageNumber(pageResult.getPageNumber())
+                .pageSize(pageResult.getPageSize())
+                .totalElements(pageResult.getTotalElements())
+                .totalPages(pageResult.getTotalPages())
+                .first(pageResult.isFirst())
+                .last(pageResult.isLast())
+                .empty(pageResult.isEmpty())
+                .numberOfElements(pageResult.getNumberOfElements())
+                .build();
+
+        return ApiResponse.success("Books retrieved successfully", pageResponse);
     }
 }
