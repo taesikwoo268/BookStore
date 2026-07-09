@@ -7,12 +7,11 @@ public class ISBNValidator implements ConstraintValidator<ValidISBN, String> {
 
     @Override
     public void initialize(ValidISBN constraintAnnotation) {
-        // Không cần khởi tạo gì
+        // Không cần khởi tạo
     }
 
     @Override
     public boolean isValid(String isbn, ConstraintValidatorContext context) {
-        // Nếu null hoặc rỗng → không hợp lệ (có thể dùng @NotBlank để bắt)
         if (isbn == null || isbn.isBlank()) {
             return false;
         }
@@ -30,18 +29,14 @@ public class ISBNValidator implements ConstraintValidator<ValidISBN, String> {
             return false;
         }
 
-        // Kiểm tra checksum (chữ số cuối cùng)
+        // Kiểm tra checksum
         return isValidISBN13(cleanIsbn);
     }
 
-    /**
-     * Kiểm tra checksum của ISBN-13 theo tiêu chuẩn EAN-13
-     */
     private boolean isValidISBN13(String isbn) {
         int sum = 0;
         for (int i = 0; i < 12; i++) {
             int digit = Character.getNumericValue(isbn.charAt(i));
-            // Nhân với 1 nếu vị trí chẵn (0-based), nhân với 3 nếu vị trí lẻ
             sum += (i % 2 == 0) ? digit : digit * 3;
         }
         int checksum = (10 - (sum % 10)) % 10;
