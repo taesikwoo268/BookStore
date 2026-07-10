@@ -33,5 +33,5 @@ public class BookUpdateRequest {
     private Integer stock;
 
     private Long authorId;
-    private Long categoryId;
+    private List<Long> categoryIds;
 }

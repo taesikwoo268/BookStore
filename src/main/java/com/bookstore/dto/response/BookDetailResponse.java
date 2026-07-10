@@ -20,5 +20,5 @@ public class BookDetailResponse {
     private Integer stock;
     private Integer salesCount;
     private AuthorDetailResponse author;
-    private CategoryDetailResponse category;
+    private List<CategoryDetailResponse> categories;
 }

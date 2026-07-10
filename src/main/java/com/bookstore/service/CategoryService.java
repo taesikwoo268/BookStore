@@ -55,10 +55,17 @@ public class CategoryService {
                 .collect(Collectors.toList());
     }
 
-    public List<Book> getBooksByCategory(Long categoryId) {
-        Category category = getCategoryById(categoryId);
-        return bookService.getAllBooks().stream()
-                .filter(b -> b.getCategory() != null && b.getCategory().getId().equals(categoryId))
-                .collect(Collectors.toList());
+    public List<Category> getCategoriesByIds(List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Category> categories = categoryRepository.findAllById(categoryIds);
+
+        if (categories.size() != categoryIds.size()) {
+            throw new ResourceNotFoundException("One or more categories not found");
+        }
+
+        return categories;
     }
 }

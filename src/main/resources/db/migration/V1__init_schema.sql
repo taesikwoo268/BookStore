@@ -46,9 +46,16 @@ CREATE TABLE books (
                        stock INT,
                        sales_count INT DEFAULT 0,
                        author_id BIGINT,
-                       category_id BIGINT,
-                       FOREIGN KEY (author_id) REFERENCES authors(id),
-                       FOREIGN KEY (category_id) REFERENCES categories(id)
+                       FOREIGN KEY (author_id) REFERENCES authors(id)
+);
+
+-- Bảng book_categories (Many-to-Many)
+CREATE TABLE book_categories (
+                                 book_id BIGINT NOT NULL,
+                                 category_id BIGINT NOT NULL,
+                                 PRIMARY KEY (book_id, category_id),
+                                 FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE,
+                                 FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE
 );
 
 -- Bảng carts (giỏ hàng của user)

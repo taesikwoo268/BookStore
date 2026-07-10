@@ -35,6 +35,6 @@ public class BookCreateRequest {
     @NotNull(message = "Author ID is required")
     private Long authorId;
 
-    @NotNull(message = "Category ID is required")
-    private Long categoryId;
+    @NotEmpty(message = "At least one category ID is required")
+    private List<Long> categoryIds;
 }

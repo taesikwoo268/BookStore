@@ -34,7 +34,7 @@ public class BookService {
 
     public Book createBook(BookCreateRequest request) {
         Book book = bookMapper.toEntity(request);
-        BookValidator.validate(book);
+        com.bookstore.validator.BookValidator.validate(book);
         if (bookRepository.existsByIsbn(book.getIsbn())) {
             throw new DuplicateISBNException("Book with ISBN " + book.getIsbn() + " already exists");
         }
@@ -52,7 +52,7 @@ public class BookService {
 
         // Map update request to existing entity
         bookMapper.updateEntity(existing, request);
-        BookValidator.validate(existing);
+        com.bookstore.validator.BookValidator.validate(existing);
 
         return bookRepository.save(existing);
     }
@@ -73,7 +73,8 @@ public class BookService {
                 .filter(b -> b.getTitle().toLowerCase().contains(lowerKeyword) ||
                         b.getIsbn().contains(keyword) ||
                         (b.getAuthor() != null && b.getAuthor().getName().toLowerCase().contains(lowerKeyword)) ||
-                        (b.getCategory() != null && b.getCategory().getName().toLowerCase().contains(lowerKeyword)))
+                        (b.getCategories() != null && b.getCategories().stream()
+                                .anyMatch(c -> c.getName().toLowerCase().contains(lowerKeyword))))
                 .collect(Collectors.toList());
     }
 
@@ -87,9 +88,15 @@ public class BookService {
 
     // Stream API: nhóm theo category
     public Map<String, List<Book>> groupByCategory() {
+
         return bookRepository.findAll().stream()
-                .filter(b -> b.getCategory() != null)
-                .collect(Collectors.groupingBy(b -> b.getCategory().getName()));
+                .filter(book -> book.getCategories() != null && !book.getCategories().isEmpty())
+                .flatMap(book -> book.getCategories().stream()
+                        .map(category -> Map.entry(category.getName(), book)))
+                .collect(Collectors.groupingBy(
+                        Map.Entry::getKey,
+                        Collectors.mapping(Map.Entry::getValue, Collectors.toList())
+                ));
     }
 
     // Stream API: top 5 sách bán chạy nhất (dựa trên salesCount)
@@ -137,10 +144,10 @@ public class BookService {
         if (genre == null || genre.isBlank()) {
             return true;
         }
-        if (book.getCategory() == null) {
+        if (book.getCategories() == null|| book.getCategories().isEmpty()) {
             return false;
         }
-        return book.getCategory().getName().equalsIgnoreCase(genre);
+        return book.getCategories().stream().anyMatch(category -> category.getName().equalsIgnoreCase(genre));
     }
 
     /**

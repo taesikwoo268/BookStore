@@ -20,5 +20,5 @@ public class BookSummaryResponse {
     private Integer stock;
     private Integer salesCount;
     private String authorName;
-    private String categoryName;
+    private List<String> categoryNames;
 }

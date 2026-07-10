@@ -10,12 +10,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "categories")
+@Table(name = "roles")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Category {
+public class Role {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -24,11 +24,7 @@ public class Category {
     @Column(nullable = false, unique = true, length = 50)
     private String name;
 
-    @Column(columnDefinition = "TEXT")
-    private String description;
-
-    // Quan hệ với Books (One-to-Many) - Vì schema có category_id trong books
-    @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
+    @ManyToMany(mappedBy = "roles")
     @Builder.Default
-    private List<Book> books = new ArrayList<>();
+    private List<User> users = new ArrayList<>();
 }
