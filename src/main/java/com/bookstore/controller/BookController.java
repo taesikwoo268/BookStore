@@ -35,6 +35,13 @@ public class BookController {
     private final BookService bookService;
     private final BookMapper bookMapper;
 
+    @GetMapping
+    public ApiResponse<List<BookSummaryResponse>> getAllBooks() {
+        List<Book> books = bookService.getAllBooks();
+        List<BookSummaryResponse> response = bookMapper.toSummaryList(books);
+        return ApiResponse.success(response);
+    }
+
     // ===== CREATE =====
     @Operation(summary = "Create a new book", description = "Create a new book with the provided details")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
@@ -128,7 +135,7 @@ public class BookController {
                     description = "Books retrieved successfully",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     })
-    @GetMapping
+    @GetMapping("/filter")
     public ApiResponse<PageResponse<BookSummaryResponse>> getBooksWithFilter(
             @Parameter(description = "Page number (0-indexed)", example = "0")
             @RequestParam(defaultValue = "0") int page,

@@ -7,11 +7,16 @@ import com.bookstore.dto.response.PageResponse;
 import com.bookstore.exception.BookNotFoundException;
 import com.bookstore.exception.DuplicateISBNException;
 import com.bookstore.mapper.BookMapper;
-import com.bookstore.model.Author;
 import com.bookstore.model.Book;
 import com.bookstore.repository.BookRepository;
+import com.bookstore.validation.BookValidator;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -34,7 +39,7 @@ public class BookService {
 
     public Book createBook(BookCreateRequest request) {
         Book book = bookMapper.toEntity(request);
-        com.bookstore.validator.BookValidator.validate(book);
+        BookValidator.validate(book);
         if (bookRepository.existsByIsbn(book.getIsbn())) {
             throw new DuplicateISBNException("Book with ISBN " + book.getIsbn() + " already exists");
         }
@@ -52,7 +57,7 @@ public class BookService {
 
         // Map update request to existing entity
         bookMapper.updateEntity(existing, request);
-        com.bookstore.validator.BookValidator.validate(existing);
+        BookValidator.validate(existing);
 
         return bookRepository.save(existing);
     }
@@ -228,5 +233,28 @@ public class BookService {
                 .empty(pageContent.isEmpty())
                 .numberOfElements(pageContent.size())
                 .build();
+    }
+
+    @Retryable(
+            value = {ObjectOptimisticLockingFailureException.class, OptimisticLockingFailureException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 100)
+    )
+    @Transactional
+    public Book updateBookWithVersion(Long id, BookUpdateRequest request) {
+        // Lấy book hiện tại (version sẽ được load)
+        Book existing = getBookById(id);
+
+        // Check duplicate ISBN (excluding itself)
+        if (!existing.getIsbn().equals(request.getIsbn()) &&
+                bookRepository.existsByIsbn(request.getIsbn())) {
+            throw new DuplicateISBNException("ISBN " + request.getIsbn() + " already used by another book");
+        }
+
+        // Map update request to existing entity
+        bookMapper.updateEntity(existing, request);
+        BookValidator.validate(existing);
+        // Lưu - nếu version thay đổi (bởi người khác), sẽ throw OptimisticLockException
+        return bookRepository.save(existing);
     }
 }

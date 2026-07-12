@@ -34,7 +34,7 @@ public class Book {
 
     private Integer salesCount;
 
-    // Many-to-One với Author (đã có trong DB)
+    // Many-to-One với Author
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "author_id")
     private Author author;
@@ -48,4 +48,9 @@ public class Book {
     )
     @Builder.Default
     private List<Category> categories = new ArrayList<>();
+
+    @Version
+    @Column(name = "version", nullable = false)
+    @Builder.Default
+    private Integer version = 0;
 }
