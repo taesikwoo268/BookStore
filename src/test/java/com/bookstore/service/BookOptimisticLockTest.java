@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.concurrent.CountDownLatch;
@@ -32,15 +33,25 @@ class BookOptimisticLockTest {
 
     @BeforeEach
     void setUp() {
-        // Tạo một book test
+        // 1. Xóa sách cũ nếu tồn tại
+        bookRepository.findByIsbn("978-9999999999")
+                .ifPresent(b -> bookRepository.delete(b));
+
+        // 2. Lấy ra một thể loại thực tế có sẵn từ Seed Data (ví dụ: Fantasy có ID = 1)
+        com.bookstore.model.Category sampleCategory = new com.bookstore.model.Category();
+        sampleCategory.setId(1L);
+
+        // 3. Tạo một cuốn sách test mới và add category vào danh sách mẫu
         Book newBook = Book.builder()
-                .isbn("978-1234567890")
+                .isbn("978-9999999999")
                 .title("Test Lock Book")
                 .price(new BigDecimal("19.99"))
                 .stock(100)
                 .salesCount(0)
                 .version(0)
+                .categories(new java.util.ArrayList<>(java.util.List.of(sampleCategory))) // <--- BỔ SUNG DÒNG NÀY
                 .build();
+
         book = bookRepository.save(newBook);
         bookId = book.getId();
     }
@@ -60,10 +71,11 @@ class BookOptimisticLockTest {
                 try {
                     // Tạo request với title khác nhau
                     BookUpdateRequest request = BookUpdateRequest.builder()
-                            .isbn("978-1234567890")
+                            .isbn("978-9999999999")
                             .title("Updated by Thread " + index)
                             .price(new BigDecimal("29.99"))
                             .stock(100)
+                            .categoryIds(java.util.List.of(1L))
                             .build();
 
                     // Cả 2 thread cùng update
