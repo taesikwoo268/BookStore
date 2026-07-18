@@ -6,7 +6,9 @@
 -- 1. Roles
 INSERT INTO roles (name) VALUES
                              ('ROLE_ADMIN'),
-                             ('ROLE_USER');
+                             ('ROLE_USER'),
+                             ('ROLE_MANAGER'),
+                             ('ROLE_EMPLOYEE');
 
 -- 2. Users
 INSERT INTO users (username, password, email, full_name, created_at) VALUES
