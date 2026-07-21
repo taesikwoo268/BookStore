@@ -9,6 +9,7 @@ import com.bookstore.dto.response.TokenRefreshResponse;
 import com.bookstore.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -30,15 +31,15 @@ public class AuthController {
 
     @PostMapping("/login")
     @Operation(summary = "Login user")
-    public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        AuthResponse response = authService.login(request);
+    public ApiResponse<AuthResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        AuthResponse response = authService.login(request, httpRequest);
         return ApiResponse.success("Login successful", response);
     }
 
     @PostMapping("/refresh")
     @Operation(summary = "Refresh access token")
-    public ApiResponse<TokenRefreshResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
-        TokenRefreshResponse response = authService.refreshToken(request);
+    public ApiResponse<TokenRefreshResponse> refresh(@Valid @RequestBody RefreshTokenRequest request,HttpServletRequest httpServletRequest) {
+        TokenRefreshResponse response = authService.refreshToken(request,httpServletRequest);
         return ApiResponse.success("Token refreshed successfully", response);
     }
 

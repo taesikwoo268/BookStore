@@ -1,5 +1,6 @@
 package com.bookstore.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -34,6 +35,7 @@ public class Permission {
     @Column(length = 255)
     private String description;
 
+    @JsonIgnore
     @ManyToMany(mappedBy = "permissions")
     @Builder.Default
     private List<Role> roles = new ArrayList<>();

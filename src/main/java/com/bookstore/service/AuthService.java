@@ -7,19 +7,21 @@ import com.bookstore.dto.response.AuthResponse;
 import com.bookstore.dto.response.TokenRefreshResponse;
 import com.bookstore.exception.DuplicateEmailException;
 import com.bookstore.exception.DuplicateUsernameException;
-import com.bookstore.exception.InvalidTokenException;
 import com.bookstore.exception.ResourceNotFoundException;
 import com.bookstore.model.RefreshToken;
 import com.bookstore.model.Role;
 import com.bookstore.model.User;
-import com.bookstore.repository.RefreshTokenRepository;
 import com.bookstore.repository.RoleRepository;
 import com.bookstore.repository.UserRepository;
 import com.bookstore.security.CustomUserDetails;
-import com.bookstore.security.JwtTokenProvider;
+import com.bookstore.security.JwtRsaProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.mapstruct.control.MappingControl;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,138 +40,133 @@ import java.util.UUID;
 public class AuthService {
 
     private final AuthenticationManager authenticationManager;
-    private final JwtTokenProvider tokenProvider;
+    private final JwtRsaProvider jwtRsaProvider;
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final RefreshTokenService refreshTokenService;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.jwt.refresh-token-expiration}")
+    private long refreshTokenExpiration;
 
     private static final String DEFAULT_ROLE = "ROLE_USER";
 
+    // ============================================================
+    // 1. REGISTER
+    // ============================================================
+
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        log.info("Registering new user: {}", request.getUsername());
+        log.info("📝 Registering new user: {}", request.getUsername());
 
-        // Kiểm tra username đã tồn tại
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new DuplicateUsernameException("Username already exists: " + request.getUsername());
         }
 
-        // Kiểm tra email đã tồn tại
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new DuplicateEmailException("Email already exists: " + request.getEmail());
         }
 
-        // Tạo user mới
+        Role defaultRole = roleRepository.findByName(DEFAULT_ROLE)
+                .orElseThrow(() -> new ResourceNotFoundException("Default role not found: " + DEFAULT_ROLE));
+
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .enabled(true)
+                .roles(List.of(defaultRole))
                 .build();
 
-        // Gán role mặc định
-        Role defaultRole = roleRepository.findByName(DEFAULT_ROLE)
-                .orElseThrow(() -> new ResourceNotFoundException("Default role not found: " + DEFAULT_ROLE));
-        user.setRoles(List.of(defaultRole));
-
         User savedUser = userRepository.save(user);
-        log.info("User registered successfully: {}", savedUser.getUsername());
+        log.info("✅ User registered successfully: {}", savedUser.getUsername());
 
-        // Tạo token
-        String accessToken = tokenProvider.generateAccessToken(savedUser.getUsername());
-        String refreshToken = createRefreshToken(savedUser);
+        // Tạo token cho user mới
+        String accessToken = jwtRsaProvider.generateAccessToken(savedUser.getUsername());
+        String refreshToken = refreshTokenService.createRefreshToken(savedUser,null,null);
 
         return buildAuthResponse(savedUser, accessToken, refreshToken);
     }
 
-    public AuthResponse login(LoginRequest request) {
-        log.info("Login user: {}", request.getUsername());
+    // ============================================================
+    // 2. LOGIN
+    // ============================================================
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
-        );
+    public AuthResponse login(LoginRequest request, HttpServletRequest httpServletRequest) {
+        log.info("🪪 Login user: {}", request.getUsername());
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
-        User user = userDetails.getUser();
+        try {
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword())
+            );
 
-        // Cập nhật last login
-        user.setLastLogin(Instant.now());
-        userRepository.save(user);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+            User user = userDetails.getUser()
+                    ;
+            // Cập nhật last login
+            user.setLastLogin(Instant.now());
+            userRepository.save(user);
 
-        String accessToken = tokenProvider.generateAccessToken(authentication);
-        String refreshToken = createRefreshToken(user);
+            String ipAddress = getClientIp(httpServletRequest);
+            String userAgent = httpServletRequest.getHeader("User-Agent");
 
-        log.info("User logged in successfully: {}", user.getUsername());
-        return buildAuthResponse(user, accessToken, refreshToken);
-    }
+            String accessToken = jwtRsaProvider.generateAccessToken(authentication);
+            String refreshToken = refreshTokenService.createRefreshToken(user, ipAddress, userAgent);
 
-    public TokenRefreshResponse refreshToken(RefreshTokenRequest request) {
-        log.info("Refreshing token");
-
-        RefreshToken refreshToken = refreshTokenRepository.findByTokenAndRevokedFalse(request.getRefreshToken())
-                .orElseThrow(() -> new InvalidTokenException("Invalid refresh token"));
-
-        // Kiểm tra token đã hết hạn
-        if (refreshToken.getExpiryDate().isBefore(Instant.now())) {
-            refreshToken.setRevoked(true);
-            refreshTokenRepository.save(refreshToken);
-            throw new InvalidTokenException("Refresh token has expired");
+            log.info("✅ User logged in successfully: {}", user.getUsername());
+            return buildAuthResponse(user, accessToken, refreshToken);
         }
-
-        User user = refreshToken.getUser();
-        String newAccessToken = tokenProvider.generateAccessToken(user.getUsername());
-        String newRefreshToken = createRefreshToken(user);
-
-        // Revoke old refresh token
-        refreshToken.setRevoked(true);
-        refreshTokenRepository.save(refreshToken);
-
-        log.info("Token refreshed successfully for user: {}", user.getUsername());
-
-        return TokenRefreshResponse.builder()
-                .accessToken(newAccessToken)
-                .refreshToken(newRefreshToken)
-                .tokenType("Bearer")
-                .expiresIn(tokenProvider.getAccessTokenExpiration() / 1000)
-                .build();
+        catch (BadCredentialsException ex) {
+            log.warn("❌ Login failed for user: {} - Invalid credentials", request.getUsername());
+            throw new BadCredentialsException("Invalid username or password");
+        }
     }
+
+    // ============================================================
+    // 3. REFRESH TOKEN
+    // ============================================================
+
+    public TokenRefreshResponse refreshToken(RefreshTokenRequest request,HttpServletRequest httpServletRequest) {
+        log.info("🔄️Refreshing token");
+
+        String oldPlainToken = request.getRefreshToken();
+        RefreshToken oldRefreshToken = refreshTokenService.validateAndGetRefreshToken(oldPlainToken);
+        User user = oldRefreshToken.getUser();
+
+        String ipAddress = getClientIp(httpServletRequest);
+        String userAgent = httpServletRequest.getHeader("User-Agent");
+
+        String newRefreshToken = refreshTokenService.rotateRefreshToken(oldPlainToken, user, ipAddress, userAgent);
+
+         String newAccessToken = jwtRsaProvider.generateAccessToken(user.getUsername());
+         log.info("✅ Token refreshed successfully for user: {}", user.getUsername());
+         return TokenRefreshResponse.builder()
+                 .accessToken(newAccessToken)
+                 .refreshToken(newRefreshToken)
+                 .tokenType("Bearer")
+                 .expiresIn(jwtRsaProvider.getAccessTokenExpiration() / 1000)
+                 .build();
+    }
+
+    // ============================================================
+    // 4. LOGOUT
+    // ============================================================
 
     @Transactional
     public void logout(String refreshToken) {
-        log.info("Logging out user");
+        log.info("🪦Logging out user");
 
         if (refreshToken != null && !refreshToken.isEmpty()) {
-            RefreshToken token = refreshTokenRepository.findByTokenAndRevokedFalse(refreshToken)
-                    .orElse(null);
-            if (token != null) {
-                token.setRevoked(true);
-                refreshTokenRepository.save(token);
-                log.info("Refresh token revoked successfully");
-            }
+            refreshTokenService.blacklistRefreshToken(refreshToken);
+            log.info("Refresh token blacklisted successfully");
         }
 
         SecurityContextHolder.clearContext();
         log.info("User logged out successfully");
     }
 
-    private String createRefreshToken(User user) {
-        String token = UUID.randomUUID().toString();
-        Instant expiryDate = Instant.now().plusMillis(tokenProvider.getRefreshTokenExpiration());
-
-        RefreshToken refreshToken = RefreshToken.builder()
-                .token(token)
-                .user(user)
-                .expiryDate(expiryDate)
-                .createdAt(Instant.now())
-                .revoked(false)
-                .build();
-
-        refreshTokenRepository.save(refreshToken);
-        return token;
-    }
 
     private AuthResponse buildAuthResponse(User user, String accessToken, String refreshToken) {
         return AuthResponse.builder()
@@ -179,8 +177,29 @@ public class AuthService {
                 .accessToken(accessToken)
                 .refreshToken(refreshToken)
                 .tokenType("Bearer")
-                .expiresIn(tokenProvider.getAccessTokenExpiration() / 1000)
-                .roles(user.getRoles().stream().map(Role::getName).toList())
+                .expiresIn(jwtRsaProvider.getAccessTokenExpiration() / 1000)
+                .roles(user.getRoles().stream()
+                        .map(Role::getName)
+                        .collect(Collectors.toList()))
                 .build();
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        if (request == null) {
+            return "unknown";
+        }
+
+        String xff = request.getHeader("X-Forwarded-For");
+        if (xff != null && !xff.isBlank()) {
+            return xff.split(",")[0].trim();
+        }
+
+        String xri = request.getHeader("X-Real-IP");
+        if (xri != null && !xri.isBlank()) {
+            return xri.trim();
+        }
+
+        String remoteAddr = request.getRemoteAddr();
+        return remoteAddr != null ? remoteAddr : "unknown";
     }
 }

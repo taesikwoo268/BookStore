@@ -1,5 +1,6 @@
 package com.bookstore.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,6 +30,7 @@ public class Role {
     @Column(length = 255)
     private String description;
 
+    @JsonIgnore
     @ManyToMany(mappedBy = "roles")
     @Builder.Default
     private List<User> users = new ArrayList<>();
@@ -47,4 +49,9 @@ public class Role {
 
     @Column(name = "updated_at")
     private Instant updatedAt;
+
+    @Override
+    public String toString() {
+        return "Role(id=" + id + ", name=" + name + ")";
+    }
 }

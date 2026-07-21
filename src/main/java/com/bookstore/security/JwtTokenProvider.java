@@ -3,6 +3,7 @@ package com.bookstore.security;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -20,9 +21,11 @@ public class JwtTokenProvider {
     private String jwtSecret;
 
     @Value("${app.jwt.access-token-expiration}")
+    @Getter
     private long accessTokenExpiration;
 
     @Value("${app.jwt.refresh-token-expiration}")
+    @Getter
     private long refreshTokenExpiration;
 
     private SecretKey getSigningKey() {
@@ -75,13 +78,5 @@ public class JwtTokenProvider {
             log.error("Invalid JWT token: {}", e.getMessage());
             return false;
         }
-    }
-
-    public long getAccessTokenExpiration() {
-        return accessTokenExpiration;
-    }
-
-    public long getRefreshTokenExpiration() {
-        return refreshTokenExpiration;
     }
 }

@@ -12,11 +12,11 @@ INSERT INTO roles (name) VALUES
 
 -- 2. Users
 INSERT INTO users (username, password, email, full_name, created_at) VALUES
-                                                                         ('admin', '$2a$10$NkM5qS2Z5q2pJ.8hZ4Q.0uD6KJ9XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7', 'admin@bookstore.com', 'Administrator', NOW()),
-                                                                         ('john_doe', '$2a$10$NkM5qS2Z5q2pJ.8hZ4Q.0uD6KJ9XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7', 'john.doe@email.com', 'John Doe', NOW()),
-                                                                         ('jane_smith', '$2a$10$NkM5qS2Z5q2pJ.8hZ4Q.0uD6KJ9XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7', 'jane.smith@email.com', 'Jane Smith', NOW()),
-                                                                         ('alice_w', '$2a$10$NkM5qS2Z5q2pJ.8hZ4Q.0uD6KJ9XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7', 'alice.w@email.com', 'Alice Wonder', NOW()),
-                                                                         ('bob_j', '$2a$10$NkM5qS2Z5q2pJ.8hZ4Q.0uD6KJ9XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7XbZ7', 'bob.j@email.com', 'Bob Johnson', NOW());
+                                                                         ('admin', '$2a$10$8h7SDylJn6ZY/2ZtA3Ah3OcuGETFCz160fKG3uQuXfM1Dobw1Innq', 'admin@bookstore.com', 'Administrator', NOW()),
+                                                                         ('john_doe', '$2a$10$8h7SDylJn6ZY/2ZtA3Ah3OcuGETFCz160fKG3uQuXfM1Dobw1Innq', 'john.doe@email.com', 'John Doe', NOW()),
+                                                                         ('jane_smith', '$2a$10$8h7SDylJn6ZY/2ZtA3Ah3OcuGETFCz160fKG3uQuXfM1Dobw1Innq', 'jane.smith@email.com', 'Jane Smith', NOW()),
+                                                                         ('alice_w', '$2a$10$8h7SDylJn6ZY/2ZtA3Ah3OcuGETFCz160fKG3uQuXfM1Dobw1Innq', 'alice.w@email.com', 'Alice Wonder', NOW()),
+                                                                         ('bob_j', '$2a$10$8h7SDylJn6ZY/2ZtA3Ah3OcuGETFCz160fKG3uQuXfM1Dobw1Innq', 'bob.j@email.com', 'Bob Johnson', NOW());
 
 -- 3. User roles
 INSERT INTO user_roles (user_id, role_id) VALUES

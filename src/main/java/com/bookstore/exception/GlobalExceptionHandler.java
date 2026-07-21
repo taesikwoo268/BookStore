@@ -81,6 +81,7 @@ public class GlobalExceptionHandler {
     // ===== 8. Xử lý tất cả exception còn lại =====
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
+        ex.printStackTrace();
         ApiResponse<Void> response = ApiResponse.error("An unexpected error occurred: " + ex.getMessage());
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
