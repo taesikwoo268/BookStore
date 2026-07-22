@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -57,6 +58,7 @@ public class BookController {
                     description = "ISBN already exists")
     })
     @PostMapping
+    @PreAuthorize("hasAuthority('book:write')")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<BookResponse> createBook(@Valid @RequestBody BookCreateRequest request) {
         Book book = bookService.createBook(request);
@@ -78,6 +80,7 @@ public class BookController {
                     description = "ISBN already exists")
     })
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('book:write')")
     public ApiResponse<BookResponse> updateBook(
             @Parameter(description = "Book ID", required = true, example = "1")
             @PathVariable Long id,
@@ -97,6 +100,7 @@ public class BookController {
                     description = "Book not found")
     })
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('book:delete')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public ApiResponse<Void> deleteBook(
             @Parameter(description = "Book ID", required = true, example = "1")
@@ -136,6 +140,7 @@ public class BookController {
                     content = @Content(schema = @Schema(implementation = ApiResponse.class)))
     })
     @GetMapping("/filter")
+    @PreAuthorize("isAuthenticated()")
     public ApiResponse<PageResponse<BookSummaryResponse>> getBooksWithFilter(
             @Parameter(description = "Page number (0-indexed)", example = "0")
             @RequestParam(defaultValue = "0") int page,
