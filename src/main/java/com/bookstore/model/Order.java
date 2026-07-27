@@ -1,5 +1,6 @@
 package com.bookstore.model;
 
+import com.bookstore.enums.OrderStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -36,7 +37,7 @@ public class Order {
     private BigDecimal totalAmount;
 
     @Column(length = 20)
-    private String status;
+    private OrderStatus status;
 
     @Column(name = "shipping_address", columnDefinition = "TEXT")
     private String shippingAddress;

@@ -64,6 +64,9 @@ public class User {
     @Builder.Default
     private List<Order> orders = new ArrayList<>();
 
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Cart cart;
+
     @Override
     public String toString() {
         return "User(id=" + id + ", username=" + username + ", email=" + email + ")";

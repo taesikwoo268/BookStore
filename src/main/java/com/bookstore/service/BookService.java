@@ -29,6 +29,10 @@ public class BookService {
     private final BookRepository bookRepository;
     private final BookMapper bookMapper;
 
+    // ============================================================
+    // GET BOOK
+    // ============================================================
+
     public List<Book> getAllBooks() {
         return bookRepository.findAll();
     }
@@ -36,6 +40,10 @@ public class BookService {
     public Book getBookById(Long id) {
         return bookRepository.findById(id).orElseThrow(() -> new BookNotFoundException("Book not found with id: " + id));
     }
+
+    // ============================================================
+    // CREATE BOOK
+    // ============================================================
 
     public Book createBook(BookCreateRequest request) {
         Book book = bookMapper.toEntity(request);
@@ -45,6 +53,10 @@ public class BookService {
         }
         return bookRepository.save(book);
     }
+
+    // ============================================================
+    // UPDATE BOOK
+    // ============================================================
 
     public Book updateBook(Long id, BookUpdateRequest request) {
         Book existing = getBookById(id);
@@ -62,12 +74,20 @@ public class BookService {
         return bookRepository.save(existing);
     }
 
+    // ============================================================
+    // DELETE BOOK
+    // ============================================================
+
     public void deleteBook(Long id) {
         if (!bookRepository.existsById(id)) {
             throw new BookNotFoundException("Book not found with id: " + id);
         }
         bookRepository.deleteById(id);
     }
+
+    // ============================================================
+    // SEARCH BOOK
+    // ============================================================
 
     public List<Book> searchBook(String keyword) {
         if (keyword == null || keyword.isBlank()) {
@@ -256,5 +276,14 @@ public class BookService {
         BookValidator.validate(existing);
         // Lưu - nếu version thay đổi (bởi người khác), sẽ throw OptimisticLockException
         return bookRepository.save(existing);
+    }
+    public void updateStock(Long id, int quantity) {
+        Book book = getBookById(id);
+        int newStock = book.getStock() - quantity;
+        if (newStock < 0) {
+            throw new IllegalArgumentException("Not enough stock for book with id: " + id);
+        }
+        book.setStock(newStock);
+        bookRepository.save(book);
     }
 }

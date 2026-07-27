@@ -1,4 +1,4 @@
-package com.bookstore.model.enums;
+package com.bookstore.enums;
 
 public enum PaymentStatus {
     PENDING("Pending"),
@@ -15,5 +15,14 @@ public enum PaymentStatus {
 
     public String getDisplayName() {
         return displayName;
+    }
+
+    public static PaymentStatus fromString(String status) {
+        for (PaymentStatus paymentStatus : PaymentStatus.values()) {
+            if (paymentStatus.name().equalsIgnoreCase(status)) {
+                return paymentStatus;
+            }
+        }
+        return PENDING;
     }
 }

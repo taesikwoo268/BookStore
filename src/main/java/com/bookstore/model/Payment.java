@@ -1,5 +1,7 @@
 package com.bookstore.model;
 
+import com.bookstore.enums.PaymentMethod;
+import com.bookstore.enums.PaymentStatus;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,11 +35,13 @@ public class Payment {
     @Column(precision = 10, scale = 2)
     private BigDecimal amount;
 
+    @Enumerated(EnumType.STRING)
     @Column(length = 50)
-    private String method;
+    private PaymentMethod method;
 
+    @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    private String status;
+    private PaymentStatus status;
 
     @Column(name = "transaction_id", length = 100)
     private String transactionId;
