@@ -277,13 +277,13 @@ public class BookService {
         // Lưu - nếu version thay đổi (bởi người khác), sẽ throw OptimisticLockException
         return bookRepository.save(existing);
     }
-    public void updateStock(Long id, int quantity) {
+    public Book updateStock(Long id, int quantity) {
         Book book = getBookById(id);
         int newStock = book.getStock() - quantity;
         if (newStock < 0) {
             throw new IllegalArgumentException("Not enough stock for book with id: " + id);
         }
         book.setStock(newStock);
-        bookRepository.save(book);
+        return bookRepository.save(book);
     }
 }

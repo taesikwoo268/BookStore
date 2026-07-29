@@ -1,5 +1,6 @@
 package com.bookstore.service;
 
+import com.bookstore.annotation.Idempotent;
 import com.bookstore.dto.request.CheckoutRequest;
 import com.bookstore.dto.response.CheckoutResponse;
 import com.bookstore.dto.response.OrderItemResponse;
@@ -12,6 +13,8 @@ import com.bookstore.exception.ResourceNotFoundException;
 import com.bookstore.model.*;
 import com.bookstore.enums.OrderStatus;
 import com.bookstore.repository.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
@@ -23,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -38,15 +42,27 @@ public class OrderService {
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
     private final StockService stockService;
+    private final IdempotencyService idempotencyService;
+    private final ObjectMapper objectMapper;
 
+    private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+    private static final int TTL_HOURS = 24;
+
+    @Idempotent(resourceType = "ORDER", ttlHours = TTL_HOURS)
     @Retryable(
             value = {OptimisticLockingFailureException.class},
             maxAttempts = 3,
             backoff = @Backoff(delay = 100, multiplier = 2)
     )
     @Transactional
-    public CheckoutResponse checkout(Long userId, CheckoutRequest request) {
+    public CheckoutResponse checkout(Long userId, CheckoutRequest request, HttpServletRequest httpRequest) {
         log.info("🛒 Starting checkout for user: {}", userId);
+
+        // check if the request has been processed before using the idempotency key
+       CheckoutResponse cachedResponse = checkIdempotencyKey(userId, httpRequest);
+        if (cachedResponse != null) {
+            return cachedResponse;
+        }
 
         Cart cart = validateCart(userId);
         checkInventory(cart);
@@ -55,7 +71,53 @@ public class OrderService {
         deductStock(cart);
         Payment payment = createPayment(order, request);
         clearCart(cart);
+        saveIdempotencyRecord(userId, order, payment, httpRequest);
         return buildCheckoutResponse(order, payment);
+    }
+
+    public CheckoutResponse checkIdempotencyKey(Long userId,HttpServletRequest httpRequest) {
+        String idempotencyKey = httpRequest.getHeader(IDEMPOTENCY_KEY_HEADER);
+        if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+            Optional<IdempotencyRecord> existing = idempotencyService.getExistingRecord(idempotencyKey, userId);
+            if (existing.isPresent()) {
+                log.info("✅ Idempotency key found: {}, returning cached order", idempotencyKey);
+                try {
+                    return objectMapper.readValue(existing.get().getResponseBody(), CheckoutResponse.class);
+                } catch (Exception e) {
+                    log.error("Failed to parse cached response: {}", e.getMessage());
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Lưu idempotency record sau khi checkout thành công
+     */
+    private void saveIdempotencyRecord(Long userId, Order order, Payment payment, HttpServletRequest httpRequest) {
+        try {
+            String idempotencyKey = httpRequest.getHeader(IDEMPOTENCY_KEY_HEADER);
+            if (idempotencyKey != null && !idempotencyKey.isBlank()) {
+                String requestHash = idempotencyService.generateRequestHash(httpRequest.getAttribute("requestBody"));
+                CheckoutResponse response = buildCheckoutResponse(order, payment);
+                String responseBody = objectMapper.writeValueAsString(response);
+
+                idempotencyService.saveRecord(
+                        idempotencyKey,
+                        userId,
+                        "ORDER",
+                        order.getId(),
+                        requestHash,
+                        "200",
+                        responseBody,
+                        TTL_HOURS
+                );
+                log.info("✅ Idempotency record saved for order: {}", order.getId());
+            }
+        } catch (Exception e) {
+            log.warn("Failed to save idempotency record: {}", e.getMessage());
+            // Không throw exception vì order đã được tạo thành công
+        }
     }
 
     private Cart validateCart(Long userId) {

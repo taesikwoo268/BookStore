@@ -17,4 +17,12 @@ public enum OrderStatus {
     public String getDisplayName() {
         return displayName;
     }
+
+    public boolean isActive() {
+        return this == PENDING || this == PROCESSING || this == SHIPPED;
+    }
+
+    public boolean isFinal() {
+        return this == DELIVERED || this == CANCELLED || this == REFUNDED;
+    }
 }
