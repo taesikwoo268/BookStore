@@ -58,8 +58,15 @@ public class OrderSchedulerService {
     }
 
     public void cancelOrderAndRestock(Order order) {
+        if (order.getStatus() != OrderStatus.PENDING || order.getIsAutoCancelled()) {
+            log.warn("Order {} is not pending or already cancelled", order.getId());
+            return;
+        }
         // Cập nhật trạng thái đơn hàng
         order.setStatus(OrderStatus.CANCELLED);
+        order.setCancelledAt(LocalDateTime.now());
+        order.setCancelledReason("Auto-cancelled: Payment timeout after " + PENDING_TIMEOUT_MINUTES + " minutes");
+        order.setIsAutoCancelled(true);
         orderRepository.save(order);
         log.info("❌ Order {} canceled", order.getId());
 
