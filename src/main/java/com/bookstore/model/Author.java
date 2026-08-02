@@ -1,5 +1,6 @@
 package com.bookstore.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +29,7 @@ public class Author {
     private String biography;
 
     // Quan hệ với Books (One-to-Many)
+    @JsonIgnore
     @OneToMany(mappedBy = "author", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
     @Builder.Default
     private List<Book> books = new ArrayList<>();

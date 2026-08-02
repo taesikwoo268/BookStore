@@ -1,5 +1,6 @@
 package com.bookstore.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,6 +29,7 @@ public class Category {
     private String description;
 
     // Quan hệ với Books (One-to-Many) - Vì schema có category_id trong books
+    @JsonIgnore
     @ManyToMany(mappedBy = "categories", fetch = FetchType.LAZY)
     @Builder.Default
     private List<Book> books = new ArrayList<>();

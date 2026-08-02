@@ -55,10 +55,5 @@ public class AuthorService {
                 .collect(Collectors.toList());
     }
 
-    public List<Book> getBooksByAuthor(Long authorId) {
-        Author author = getAuthorById(authorId);
-        return bookService.getAllBooks().stream()
-                .filter(b -> b.getAuthor() != null && b.getAuthor().getId().equals(authorId))
-                .collect(Collectors.toList());
-    }
+
 }

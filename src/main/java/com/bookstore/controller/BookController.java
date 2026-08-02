@@ -9,7 +9,6 @@ import com.bookstore.dto.response.BookResponse;
 import com.bookstore.dto.response.BookSummaryResponse;
 import com.bookstore.dto.response.PageResponse;
 import com.bookstore.mapper.BookMapper;
-import com.bookstore.model.Book;
 import com.bookstore.service.BookService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -25,7 +24,6 @@ import org.springframework.web.bind.annotation.*;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/books")
@@ -36,14 +34,21 @@ public class BookController {
     private final BookService bookService;
     private final BookMapper bookMapper;
 
+    // ============================================================
+    // 1. GET ALL BOOKS (CACHED)
+    // ============================================================
+
     @GetMapping
+    @Operation(summary = "Get all books", description = "Retrieve all books (cached)")
     public ApiResponse<List<BookSummaryResponse>> getAllBooks() {
-        List<Book> books = bookService.getAllBooks();
-        List<BookSummaryResponse> response = bookMapper.toSummaryList(books);
-        return ApiResponse.success(response);
+        List<BookSummaryResponse> books = bookService.getAllBooks();
+        return ApiResponse.success(books);
     }
 
-    // ===== CREATE =====
+    // ============================================================
+    // 2. CREATE BOOK
+    // ============================================================
+
     @Operation(summary = "Create a new book", description = "Create a new book with the provided details")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -61,11 +66,14 @@ public class BookController {
     @PreAuthorize("hasAuthority('book:write')")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<BookResponse> createBook(@Valid @RequestBody BookCreateRequest request) {
-        Book book = bookService.createBook(request);
-        return ApiResponse.success("Book created successfully", bookMapper.toResponse(book));
+        BookResponse book = bookService.createBook(request);
+        return ApiResponse.success("Book created successfully", book);
     }
 
-    // ===== UPDATE =====
+    // ============================================================
+    // 3. UPDATE BOOK
+    // ============================================================
+
     @Operation(summary = "Update an existing book", description = "Update book details by ID")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -85,11 +93,14 @@ public class BookController {
             @Parameter(description = "Book ID", required = true, example = "1")
             @PathVariable Long id,
             @Valid @RequestBody BookUpdateRequest request) {
-        Book book = bookService.updateBook(id, request);
-        return ApiResponse.success("Book updated successfully", bookMapper.toResponse(book));
+        BookResponse book = bookService.updateBook(id, request);
+        return ApiResponse.success("Book updated successfully", book);
     }
 
-    // ===== DELETE =====
+    // ============================================================
+    // 4. DELETE BOOK
+    // ============================================================
+
     @Operation(summary = "Delete a book", description = "Delete book by ID")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -109,8 +120,11 @@ public class BookController {
         return ApiResponse.success("Book deleted successfully");
     }
 
-    // ===== GET BY ID =====
-    @Operation(summary = "Get book by ID", description = "Retrieve detailed information of a book by ID")
+    // ============================================================
+    // 5. GET BOOK BY ID (CACHED)
+    // ============================================================
+
+    @Operation(summary = "Get book by ID", description = "Retrieve detailed information of a book by ID (cached)")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
@@ -124,11 +138,36 @@ public class BookController {
     public ApiResponse<BookDetailResponse> getBookById(
             @Parameter(description = "Book ID", required = true, example = "1")
             @PathVariable Long id) {
-        Book book = bookService.getBookById(id);
-        return ApiResponse.success(bookMapper.toDetailResponse(book));
+        BookDetailResponse book = bookService.getBookById(id);
+        return ApiResponse.success(book);
     }
 
-    // ===== GET ALL WITH PAGINATION =====
+    // ============================================================
+    // 6. GET BOOK BY ISBN (CACHED)
+    // ============================================================
+
+    @Operation(summary = "Get book by ISBN", description = "Retrieve detailed information of a book by ISBN (cached)")
+    @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    description = "Book found",
+                    content = @Content(schema = @Schema(implementation = ApiResponse.class))),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "404",
+                    description = "Book not found")
+    })
+    @GetMapping("/isbn/{isbn}")
+    public ApiResponse<BookDetailResponse> getBookByIsbn(
+            @Parameter(description = "Book ISBN", required = true, example = "978-0439708184")
+            @PathVariable String isbn) {
+        BookDetailResponse book = bookService.getBookByIsbn(isbn);
+        return ApiResponse.success(book);
+    }
+
+    // ============================================================
+    // 7. GET BOOKS WITH FILTER (PAGINATION)
+    // ============================================================
+
     @Operation(
             summary = "Get all books with pagination and filters",
             description = "Retrieve a paginated list of books with optional filtering by genre and price range"
@@ -170,24 +209,14 @@ public class BookController {
                 .maxPrice(maxPrice)
                 .build();
 
-        PageResponse<Book> pageResult = bookService.getBooksWithFilter(filter);
-
-        PageResponse<BookSummaryResponse> pageResponse = PageResponse.<BookSummaryResponse>builder()
-                .content(bookMapper.toSummaryList(pageResult.getContent()))
-                .pageNumber(pageResult.getPageNumber())
-                .pageSize(pageResult.getPageSize())
-                .totalElements(pageResult.getTotalElements())
-                .totalPages(pageResult.getTotalPages())
-                .first(pageResult.isFirst())
-                .last(pageResult.isLast())
-                .empty(pageResult.isEmpty())
-                .numberOfElements(pageResult.getNumberOfElements())
-                .build();
-
-        return ApiResponse.success("Books retrieved successfully", pageResponse);
+        PageResponse<BookSummaryResponse> pageResult = bookService.getBooksWithFilter(filter);
+        return ApiResponse.success("Books retrieved successfully", pageResult);
     }
 
-    // ===== SEARCH =====
+    // ============================================================
+    // 8. SEARCH BOOKS
+    // ============================================================
+
     @Operation(summary = "Search books", description = "Search books by keyword (title, ISBN, author, category)")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -199,11 +228,14 @@ public class BookController {
     public ApiResponse<List<BookSummaryResponse>> searchBooks(
             @Parameter(description = "Search keyword", example = "Harry Potter")
             @RequestParam(required = false) String keyword) {
-        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.searchBook(keyword));
+        List<BookSummaryResponse> books = bookService.searchBook(keyword);
         return ApiResponse.success(books);
     }
 
-    // ===== FILTER BY PRICE =====
+    // ============================================================
+    // 9. FILTER BY PRICE
+    // ============================================================
+
     @Operation(summary = "Filter books by price range", description = "Get books within specified price range")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -218,11 +250,14 @@ public class BookController {
 
             @Parameter(description = "Maximum price", example = "50.00")
             @RequestParam(required = false) BigDecimal to) {
-        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.filterByPrice(from, to));
+        List<BookSummaryResponse> books = bookService.filterByPrice(from, to);
         return ApiResponse.success(books);
     }
 
-    // ===== GROUP BY CATEGORY =====
+    // ============================================================
+    // 10. GROUP BY CATEGORY
+    // ============================================================
+
     @Operation(summary = "Get books grouped by category", description = "Retrieve all books grouped by their category")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
@@ -232,16 +267,15 @@ public class BookController {
     })
     @GetMapping("/group-by-category")
     public ApiResponse<Map<String, List<BookSummaryResponse>>> groupByCategory() {
-        Map<String, List<BookSummaryResponse>> grouped = bookService.groupByCategory().entrySet().stream()
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        e -> bookMapper.toSummaryList(e.getValue())
-                ));
+        Map<String, List<BookSummaryResponse>> grouped = bookService.groupByCategory();
         return ApiResponse.success(grouped);
     }
 
-    // ===== TOP 5 BEST SELLERS =====
-    @Operation(summary = "Get top 5 best-selling books", description = "Retrieve the 5 books with highest sales")
+    // ============================================================
+    // 11. TOP 5 BEST SELLERS (CACHED)
+    // ============================================================
+
+    @Operation(summary = "Get top 5 best-selling books", description = "Retrieve the 5 books with highest sales (cached)")
     @io.swagger.v3.oas.annotations.responses.ApiResponses(value = {
             @io.swagger.v3.oas.annotations.responses.ApiResponse(
                     responseCode = "200",
@@ -250,7 +284,19 @@ public class BookController {
     })
     @GetMapping("/top5")
     public ApiResponse<List<BookSummaryResponse>> getTop5BestSellers() {
-        List<BookSummaryResponse> books = bookMapper.toSummaryList(bookService.top5BestSellers());
+        List<BookSummaryResponse> books = bookService.top5BestSellers();
         return ApiResponse.success(books);
+    }
+
+    // ============================================================
+    // 12. CLEAR CACHE (Admin)
+    // ============================================================
+
+    @Operation(summary = "Clear all book caches", description = "Clear Redis cache for books (Admin only)")
+    @DeleteMapping("/cache")
+    @PreAuthorize("hasAuthority('book:delete')")
+    public ApiResponse<Void> clearCache() {
+        bookService.clearAllBookCache();
+        return ApiResponse.success("All book caches cleared successfully");
     }
 }

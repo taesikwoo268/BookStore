@@ -3,6 +3,9 @@ package com.bookstore.service;
 import com.bookstore.dto.request.BookCreateRequest;
 import com.bookstore.dto.request.BookFilterRequest;
 import com.bookstore.dto.request.BookUpdateRequest;
+import com.bookstore.dto.response.BookDetailResponse;
+import com.bookstore.dto.response.BookResponse;
+import com.bookstore.dto.response.BookSummaryResponse;
 import com.bookstore.dto.response.PageResponse;
 import com.bookstore.exception.BookNotFoundException;
 import com.bookstore.exception.DuplicateISBNException;
@@ -11,6 +14,10 @@ import com.bookstore.model.Book;
 import com.bookstore.repository.BookRepository;
 import com.bookstore.validation.BookValidator;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.retry.annotation.Backoff;
@@ -25,41 +32,98 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class BookService {
+
     private final BookRepository bookRepository;
     private final BookMapper bookMapper;
 
     // ============================================================
-    // GET BOOK
+    // 1. GET ALL BOOKS - CACHE DTO
     // ============================================================
 
-    public List<Book> getAllBooks() {
-        return bookRepository.findAll();
+    @Cacheable(value = "bookList", unless = "#result == null || #result.isEmpty()")
+    @Transactional(readOnly = true)
+    public List<BookSummaryResponse> getAllBooks() {
+        log.info("📚 [CACHE MISS] getAllBooks - Loading all books from database");
+        List<Book> books = bookRepository.findAll();
+        return bookMapper.toSummaryList(books);
     }
 
-    public Book getBookById(Long id) {
-        return bookRepository.findById(id).orElseThrow(() -> new BookNotFoundException("Book not found with id: " + id));
+    // ============================================================
+    // 2. GET BOOK BY ID - CACHE DTO
+    // ============================================================
+
+    @Cacheable(value = "bookDetail", key = "#id", unless = "#result == null")
+    @Transactional(readOnly = true)
+    public BookDetailResponse getBookById(Long id) {
+        log.info("📚 [CACHE MISS] getBookById - Loading book: id={}", id);
+        Book book = bookRepository.findById(id)
+                .orElseThrow(() -> new BookNotFoundException("Book not found with id: " + id));
+        return bookMapper.toDetailResponse(book);
     }
 
     // ============================================================
-    // CREATE BOOK
+    // 3. GET BOOK BY ISBN - CACHE DTO
     // ============================================================
 
-    public Book createBook(BookCreateRequest request) {
+    @Cacheable(value = "bookDetail", key = "#isbn", unless = "#result == null")
+    @Transactional(readOnly = true)
+    public BookDetailResponse getBookByIsbn(String isbn) {
+        log.info("📚 [CACHE MISS] getBookByIsbn - Loading book: isbn={}", isbn);
+        Book book = bookRepository.findByIsbn(isbn)
+                .orElseThrow(() -> new BookNotFoundException("Book not found with isbn: " + isbn));
+        return bookMapper.toDetailResponse(book);
+    }
+
+    // ============================================================
+    // 4. GET BOOK ENTITY (Internal use, không cache)
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public Book getBookEntityById(Long id) {
+        return bookRepository.findById(id)
+                .orElseThrow(() -> new BookNotFoundException("Book not found with id: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public Book getBookEntityByIsbn(String isbn) {
+        return bookRepository.findByIsbn(isbn)
+                .orElseThrow(() -> new BookNotFoundException("Book not found with isbn: " + isbn));
+    }
+
+    // ============================================================
+    // 5. CREATE BOOK - EVICT CACHE
+    // ============================================================
+
+    @CacheEvict(value = {"bookList", "homepageFeatured", "topSellers"}, allEntries = true)
+    @Transactional
+    public BookResponse createBook(BookCreateRequest request) {
+        log.info("📝 [CACHE EVICT] createBook - Creating new book: isbn={}", request.getIsbn());
+
         Book book = bookMapper.toEntity(request);
         BookValidator.validate(book);
+
         if (bookRepository.existsByIsbn(book.getIsbn())) {
             throw new DuplicateISBNException("Book with ISBN " + book.getIsbn() + " already exists");
         }
-        return bookRepository.save(book);
+
+        Book savedBook = bookRepository.save(book);
+        log.info("✅ Book created successfully: id={}", savedBook.getId());
+        return bookMapper.toResponse(savedBook);
     }
 
     // ============================================================
-    // UPDATE BOOK
+    // 6. UPDATE BOOK - UPDATE CACHE + EVICT
     // ============================================================
 
-    public Book updateBook(Long id, BookUpdateRequest request) {
-        Book existing = getBookById(id);
+    @CachePut(value = "bookDetail", key = "#result.isbn", condition = "#result != null")
+    @CacheEvict(value = {"bookList", "homepageFeatured", "topSellers"}, allEntries = true)
+    @Transactional
+    public BookResponse updateBook(Long id, BookUpdateRequest request) {
+        log.info("📝 [CACHE UPDATE] updateBook - Updating book: id={}", id);
+
+        Book existing = getBookEntityById(id);
 
         // Check duplicate ISBN (excluding itself)
         if (!existing.getIsbn().equals(request.getIsbn()) &&
@@ -67,54 +131,90 @@ public class BookService {
             throw new DuplicateISBNException("ISBN " + request.getIsbn() + " already used by another book");
         }
 
-        // Map update request to existing entity
         bookMapper.updateEntity(existing, request);
         BookValidator.validate(existing);
 
-        return bookRepository.save(existing);
+        Book updatedBook = bookRepository.save(existing);
+        log.info("✅ Book updated successfully: id={}", updatedBook.getId());
+        return bookMapper.toResponse(updatedBook);
     }
 
     // ============================================================
-    // DELETE BOOK
+    // 7. DELETE BOOK - EVICT CACHE
     // ============================================================
 
+    @CacheEvict(value = {"bookDetail", "bookList", "homepageFeatured", "topSellers"}, allEntries = true)
+    @Transactional
     public void deleteBook(Long id) {
+        log.info("🗑️ [CACHE EVICT] deleteBook - Deleting book: id={}", id);
+
         if (!bookRepository.existsById(id)) {
             throw new BookNotFoundException("Book not found with id: " + id);
         }
+
         bookRepository.deleteById(id);
+        log.info("✅ Book deleted successfully: id={}", id);
+    }
+
+    @CacheEvict(value = {"bookDetail", "bookList", "homepageFeatured", "topSellers"}, allEntries = true)
+    @Transactional
+    public void deleteBookByIsbn(String isbn) {
+        log.info("🗑️ [CACHE EVICT] deleteBookByIsbn - Deleting book: isbn={}", isbn);
+
+        Book book = getBookEntityByIsbn(isbn);
+        bookRepository.delete(book);
+        log.info("✅ Book deleted successfully: isbn={}", isbn);
     }
 
     // ============================================================
-    // SEARCH BOOK
+    // 8. SEARCH BOOK - KHÔNG CACHE (dữ liệu động)
     // ============================================================
 
-    public List<Book> searchBook(String keyword) {
+    @Transactional(readOnly = true)
+    public List<BookSummaryResponse> searchBook(String keyword) {
+        log.info("🔍 searchBook - Searching books: keyword={}", keyword);
+
         if (keyword == null || keyword.isBlank()) {
-            return bookRepository.findAll();
+            return getAllBooks();
         }
+
         String lowerKeyword = keyword.toLowerCase();
-        return bookRepository.findAll().stream()
+        List<Book> books = bookRepository.findAll().stream()
                 .filter(b -> b.getTitle().toLowerCase().contains(lowerKeyword) ||
                         b.getIsbn().contains(keyword) ||
                         (b.getAuthor() != null && b.getAuthor().getName().toLowerCase().contains(lowerKeyword)) ||
                         (b.getCategories() != null && b.getCategories().stream()
                                 .anyMatch(c -> c.getName().toLowerCase().contains(lowerKeyword))))
                 .collect(Collectors.toList());
+
+        return bookMapper.toSummaryList(books);
     }
 
-    // Stream API: lọc sách theo giá (từ -> đến)
-    public List<Book> filterByPrice(BigDecimal from, BigDecimal to) {
-        return bookRepository.findAll().stream()
+    // ============================================================
+    // 9. FILTER BY PRICE - KHÔNG CACHE
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public List<BookSummaryResponse> filterByPrice(BigDecimal from, BigDecimal to) {
+        log.info("💰 filterByPrice - Filtering books: from={}, to={}", from, to);
+
+        List<Book> books = bookRepository.findAll().stream()
                 .filter(b -> (from == null || b.getPrice().compareTo(from) >= 0) &&
                         (to == null || b.getPrice().compareTo(to) <= 0))
                 .collect(Collectors.toList());
+
+        return bookMapper.toSummaryList(books);
     }
 
-    // Stream API: nhóm theo category
-    public Map<String, List<Book>> groupByCategory() {
+    // ============================================================
+    // 10. GROUP BY CATEGORY - KHÔNG CACHE
+    // ============================================================
 
-        return bookRepository.findAll().stream()
+    @Transactional(readOnly = true)
+    public Map<String, List<BookSummaryResponse>> groupByCategory() {
+        log.info("📂 groupByCategory - Grouping books by category");
+
+        Map<String, List<Book>> grouped = bookRepository.findAll().stream()
                 .filter(book -> book.getCategories() != null && !book.getCategories().isEmpty())
                 .flatMap(book -> book.getCategories().stream()
                         .map(category -> Map.entry(category.getName(), book)))
@@ -122,39 +222,116 @@ public class BookService {
                         Map.Entry::getKey,
                         Collectors.mapping(Map.Entry::getValue, Collectors.toList())
                 ));
+
+        return grouped.entrySet().stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        e -> bookMapper.toSummaryList(e.getValue())
+                ));
     }
 
-    // Stream API: top 5 sách bán chạy nhất (dựa trên salesCount)
-    public List<Book> top5BestSellers() {
-        return bookRepository.findAll().stream()
+    // ============================================================
+    // 11. TOP 5 BEST SELLERS - CACHE DTO
+    // ============================================================
+
+    @Cacheable(value = "topSellers", unless = "#result == null || #result.isEmpty()")
+    @Transactional(readOnly = true)
+    public List<BookSummaryResponse> top5BestSellers() {
+        log.info("🏆 [CACHE MISS] top5BestSellers - Loading from database");
+
+        List<Book> books = bookRepository.findAll().stream()
                 .sorted((b1, b2) -> b2.getSalesCount().compareTo(b1.getSalesCount()))
                 .limit(5)
                 .collect(Collectors.toList());
+
+        return bookMapper.toSummaryList(books);
     }
-    /**
-     * Get books with pagination, sorting and filtering
-     */
-    public PageResponse<Book> getBooksWithFilter(BookFilterRequest filter) {
 
-        // 1. Lấy tất cả books
+    // ============================================================
+    // 12. GET BOOKS WITH FILTER (Pagination) - KHÔNG CACHE
+    // ============================================================
+
+    @Transactional(readOnly = true)
+    public PageResponse<BookSummaryResponse> getBooksWithFilter(BookFilterRequest filter) {
+        log.info("📄 getBooksWithFilter - page={}, size={}, sort={}, genre={}",
+                filter.getPage(), filter.getSize(), filter.getSort(), filter.getGenre());
+
         List<Book> allBooks = bookRepository.findAll();
-
-        // 2. Apply filters
         List<Book> filteredBooks = applyFilters(allBooks, filter);
-
-        // 3. Apply sorting
         List<Book> sortedBooks = applySorting(filteredBooks, filter.getSort());
 
-        // 4. Apply pagination
         int page = filter.getPage() != null ? filter.getPage() : 0;
         int size = filter.getSize() != null ? filter.getSize() : 20;
 
         return createPageResponse(sortedBooks, page, size);
     }
 
-    /**
-     * Apply all filters
-     */
+    // ============================================================
+    // 13. UPDATE BOOK WITH VERSION - OPTIMISTIC LOCK
+    // ============================================================
+
+    @Retryable(
+            value = {ObjectOptimisticLockingFailureException.class, OptimisticLockingFailureException.class},
+            maxAttempts = 3,
+            backoff = @Backoff(delay = 100)
+    )
+    @CachePut(value = "bookDetail", key = "#result.isbn", condition = "#result != null")
+    @CacheEvict(value = {"bookList", "homepageFeatured", "topSellers"}, allEntries = true)
+    @Transactional
+    public BookResponse updateBookWithVersion(Long id, BookUpdateRequest request) {
+        log.info("📝 [CACHE UPDATE] updateBookWithVersion - Updating book: id={}", id);
+
+        Book existing = getBookEntityById(id);
+
+        if (!existing.getIsbn().equals(request.getIsbn()) &&
+                bookRepository.existsByIsbn(request.getIsbn())) {
+            throw new DuplicateISBNException("ISBN " + request.getIsbn() + " already used by another book");
+        }
+
+        bookMapper.updateEntity(existing, request);
+        BookValidator.validate(existing);
+
+        Book updatedBook = bookRepository.save(existing);
+        log.info("✅ Book updated successfully: id={}, version={}", updatedBook.getId(), updatedBook.getVersion());
+        return bookMapper.toResponse(updatedBook);
+    }
+
+    // ============================================================
+    // 14. UPDATE STOCK - UPDATE CACHE + EVICT
+    // ============================================================
+
+    @CachePut(value = "bookDetail", key = "#result.isbn", condition = "#result != null")
+    @CacheEvict(value = {"bookList", "homepageFeatured", "topSellers"}, allEntries = true)
+    @Transactional
+    public BookResponse updateStock(Long id, int quantity) {
+        log.info("📦 updateStock - Updating stock: id={}, quantity={}", id, quantity);
+
+        Book book = getBookEntityById(id);
+        int newStock = book.getStock() - quantity;
+
+        if (newStock < 0) {
+            throw new IllegalArgumentException("Not enough stock for book with id: " + id);
+        }
+
+        book.setStock(newStock);
+        Book updatedBook = bookRepository.save(book);
+        log.info("✅ Stock updated: id={}, newStock={}", id, newStock);
+        return bookMapper.toResponse(updatedBook);
+    }
+
+    // ============================================================
+    // 15. CLEAR ALL CACHE
+    // ============================================================
+
+    @CacheEvict(value = {"bookDetail", "bookList", "topSellers", "homepageFeatured"}, allEntries = true)
+    public void clearAllBookCache() {
+        log.info("🗑️ [CACHE EVICT] Clearing all book-related caches");
+    }
+
+    // ============================================================
+    // 16. PRIVATE HELPER METHODS
+    // ============================================================
+
     private List<Book> applyFilters(List<Book> books, BookFilterRequest filter) {
         return books.stream()
                 .filter(book -> filterByGenre(book, filter.getGenre()))
@@ -162,40 +339,29 @@ public class BookService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Filter by genre (category name)
-     */
     private boolean filterByGenre(Book book, String genre) {
         if (genre == null || genre.isBlank()) {
             return true;
         }
-        if (book.getCategories() == null|| book.getCategories().isEmpty()) {
+        if (book.getCategories() == null || book.getCategories().isEmpty()) {
             return false;
         }
-        return book.getCategories().stream().anyMatch(category -> category.getName().equalsIgnoreCase(genre));
+        return book.getCategories().stream()
+                .anyMatch(category -> category.getName().equalsIgnoreCase(genre));
     }
 
-    /**
-     * Filter by price range
-     */
     private boolean filterByPrice(Book book, BigDecimal minPrice, BigDecimal maxPrice) {
         if (book.getPrice() == null) {
             return false;
         }
-
         boolean minCondition = minPrice == null || book.getPrice().compareTo(minPrice) >= 0;
         boolean maxCondition = maxPrice == null || book.getPrice().compareTo(maxPrice) <= 0;
-
         return minCondition && maxCondition;
     }
 
-    /**
-     * Apply sorting
-     * Format: "field,order" (e.g., "price,asc" or "title,desc")
-     */
     private List<Book> applySorting(List<Book> books, String sort) {
         if (sort == null || sort.isBlank()) {
-            return books; // Default: no sorting
+            return books;
         }
 
         String[] sortParts = sort.split(",");
@@ -210,9 +376,6 @@ public class BookService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * Compare two books by field
-     */
     private int compareByField(Book b1, Book b2, String field) {
         switch (field.toLowerCase()) {
             case "id":
@@ -232,18 +395,15 @@ public class BookService {
         }
     }
 
-    /**
-     * Create PageResponse from list
-     */
-    private PageResponse<Book> createPageResponse(List<Book> books, int page, int size) {
+    private PageResponse<BookSummaryResponse> createPageResponse(List<Book> books, int page, int size) {
         int total = books.size();
         int fromIndex = page * size;
         int toIndex = Math.min(fromIndex + size, total);
 
         List<Book> pageContent = fromIndex < total ? books.subList(fromIndex, toIndex) : List.of();
 
-        return PageResponse.<Book>builder()
-                .content(pageContent)
+        return PageResponse.<BookSummaryResponse>builder()
+                .content(bookMapper.toSummaryList(pageContent))
                 .pageNumber(page)
                 .pageSize(size)
                 .totalElements(total)
@@ -253,37 +413,5 @@ public class BookService {
                 .empty(pageContent.isEmpty())
                 .numberOfElements(pageContent.size())
                 .build();
-    }
-
-    @Retryable(
-            value = {ObjectOptimisticLockingFailureException.class, OptimisticLockingFailureException.class},
-            maxAttempts = 3,
-            backoff = @Backoff(delay = 100)
-    )
-    @Transactional
-    public Book updateBookWithVersion(Long id, BookUpdateRequest request) {
-        // Lấy book hiện tại (version sẽ được load)
-        Book existing = getBookById(id);
-
-        // Check duplicate ISBN (excluding itself)
-        if (!existing.getIsbn().equals(request.getIsbn()) &&
-                bookRepository.existsByIsbn(request.getIsbn())) {
-            throw new DuplicateISBNException("ISBN " + request.getIsbn() + " already used by another book");
-        }
-
-        // Map update request to existing entity
-        bookMapper.updateEntity(existing, request);
-        BookValidator.validate(existing);
-        // Lưu - nếu version thay đổi (bởi người khác), sẽ throw OptimisticLockException
-        return bookRepository.save(existing);
-    }
-    public Book updateStock(Long id, int quantity) {
-        Book book = getBookById(id);
-        int newStock = book.getStock() - quantity;
-        if (newStock < 0) {
-            throw new IllegalArgumentException("Not enough stock for book with id: " + id);
-        }
-        book.setStock(newStock);
-        return bookRepository.save(book);
     }
 }

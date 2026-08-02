@@ -35,8 +35,6 @@ public class CustomUserDetails implements UserDetails {
                 });
             }
         });
-
-        System.out.println("🔍 Authorities: " + authorities);
         return authorities;
     }
 
