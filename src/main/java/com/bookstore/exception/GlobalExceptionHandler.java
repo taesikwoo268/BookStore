@@ -78,7 +78,20 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 
-    // ===== 8. Xử lý tất cả exception còn lại =====
+    // ===== 8. Xử lý RateLimitExceededException =====
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleRateLimitExceeded(RateLimitExceededException ex) {
+        ApiResponse<Void> response = ApiResponse.error(
+                "Rate limit exceeded. Please try again later.",
+                List.of("Maximum 30 requests per minute allowed")
+        );
+
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getResetTime()))
+                .body(response);
+    }
+
+    // ===== 9. Xử lý tất cả exception còn lại =====
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {
         ex.printStackTrace();
