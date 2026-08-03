@@ -7,6 +7,7 @@ import com.bookstore.dto.response.OrderItemResponse;
 import com.bookstore.dto.response.PaymentResponse;
 import com.bookstore.enums.PaymentMethod;
 import com.bookstore.enums.PaymentStatus;
+import com.bookstore.event.publisher.OrderEventPublisher;
 import com.bookstore.exception.BookNotFoundException;
 import com.bookstore.exception.InsufficientStockException;
 import com.bookstore.exception.ResourceNotFoundException;
@@ -36,7 +37,6 @@ import java.util.stream.Collectors;
 public class OrderService {
 
     private final OrderRepository orderRepository;
-    private final BookRepository bookRepository;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final UserRepository userRepository;
@@ -44,6 +44,7 @@ public class OrderService {
     private final StockService stockService;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
+    private final OrderEventPublisher orderEventPublisher;
 
     private static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
     private static final int TTL_HOURS = 24;
@@ -65,13 +66,21 @@ public class OrderService {
         }
 
         Cart cart = validateCart(userId);
+
         checkInventory(cart);
 
         Order order = createOrder(userId, cart, request);
+
         deductStock(cart);
+
         Payment payment = createPayment(order, request);
+
         clearCart(cart);
+
+        orderEventPublisher.publishOrderPlacedEvent(order);
+
         saveIdempotencyRecord(userId, order, payment, httpRequest);
+
         return buildCheckoutResponse(order, payment);
     }
 
@@ -222,7 +231,7 @@ public class OrderService {
                 .build();
         return CheckoutResponse.builder()
                 .orderId(order.getId())
-                .orderNumber("ORD-" + order.getId())
+                .orderNumber("ORD-" + String.format("%08d", order.getId()))
                 .userId(order.getUser().getId())
                 .items(itemResponses)
                 .orderDate(order.getOrderDate())
