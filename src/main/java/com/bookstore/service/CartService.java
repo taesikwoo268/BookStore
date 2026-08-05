@@ -128,10 +128,10 @@ public class CartService {
             throw new RuntimeException("You do not have permission to delete this cart item");
         }
 
-        cartItemRepository.delete(cartItem);
-        log.info("✅ Deleted cart item: {}", itemId);
-
         Cart cart = cartItem.getCart();
+        cartItemRepository.delete(cartItem);
+        cart.getCartItems().remove(cartItem);
+        log.info("✅ Deleted cart item: {}", itemId);
         return cartMapper.toCartResponse(cart);
     }
 
