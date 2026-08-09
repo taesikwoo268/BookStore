@@ -23,8 +23,6 @@ public class OrderEventPublisher {
     @Value("${rabbitmq.exchange.order}")
     private String orderExchange;
 
-    @Value("${rabbitmq.routing-key.order-placed}")
-    private String orderPlacedRoutingKey;
 
     /**
      * Publish OrderPlacedEvent sau khi checkout thành công
@@ -38,7 +36,25 @@ public class OrderEventPublisher {
             // Publish message
             rabbitTemplate.convertAndSend(
                     orderExchange,
-                    orderPlacedRoutingKey,
+                    "order.placed.email",   // ✅ Routing key cho email
+                    event
+            );
+
+            rabbitTemplate.convertAndSend(
+                    orderExchange,
+                    "order.placed.loyalty",  // ✅ Routing key cho loyalty
+                    event
+            );
+
+            rabbitTemplate.convertAndSend(
+                    orderExchange,
+                    "order.placed.inventory",  // ✅ Routing key cho inventory
+                    event
+            );
+
+            rabbitTemplate.convertAndSend(
+                    orderExchange,
+                    "order.placed.notification", // ✅ Routing key cho notification
                     event
             );
 

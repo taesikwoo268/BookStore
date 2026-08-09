@@ -28,6 +28,9 @@ public class RabbitMqConfig {
     @Value("${rabbitmq.queue.email}")
     private String emailQueue;
 
+    @Value("${rabbitmq.queue.loyalty}")
+    private String loyaltyQueue;
+
     @Value("${rabbitmq.queue.notification}")
     private String notificationQueue;
 
@@ -66,6 +69,11 @@ public class RabbitMqConfig {
     }
 
     @Bean
+    public Queue loyaltyQueue() {
+        return new Queue(loyaltyQueue, true);
+    }
+
+    @Bean
     public Queue notificationQueue() {
         return new Queue(notificationQueue, true);
     }
@@ -101,6 +109,14 @@ public class RabbitMqConfig {
                 .bind(emailQueue())
                 .to(orderExchange())
                 .with("order.placed.email");
+    }
+
+    @Bean
+    public Binding loyaltyBinding() {
+        return BindingBuilder
+                .bind(loyaltyQueue())
+                .to(orderExchange())
+                .with("order.placed.loyalty");
     }
 
     @Bean
