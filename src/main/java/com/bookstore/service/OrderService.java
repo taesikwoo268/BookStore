@@ -55,7 +55,7 @@ public class OrderService {
             maxAttempts = 3,
             backoff = @Backoff(delay = 100, multiplier = 2)
     )
-    @Transactional
+    @Transactional(timeout = 10)
     public CheckoutResponse checkout(Long userId, CheckoutRequest request, HttpServletRequest httpRequest) {
         log.info("🛒 Starting checkout for user: {}", userId);
 

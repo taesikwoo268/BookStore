@@ -1,5 +1,7 @@
 package com.bookstore.service;
 
+import com.bookstore.exception.BookNotFoundException;
+import com.bookstore.exception.InsufficientStockException;
 import com.bookstore.model.Book;
 import com.bookstore.repository.BookRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,23 +22,23 @@ public class StockService {
     private static final long RETRY_DELAY = 100;
 
     @Retryable(
-            value = {RuntimeException.class},
+            value = {OptimisticLockingFailureException.class},
             maxAttempts = MAX_RETRY_ATTEMPTS,
             backoff = @Backoff(delay = RETRY_DELAY, multiplier = 2)
     )
-    public Book deductStockWithRetry(Long bookId, int quantity) {
+    @Transactional
+    public void deductStockWithRetry(Long bookId, int quantity) {
         log.info("📦 Deducting stock for bookId: {}, quantity: {}", bookId, quantity);
         Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new RuntimeException("Book not found with id: " + bookId));
+                .orElseThrow(() -> new BookNotFoundException("Book not found with id: " + bookId));
 
         if(book.getStock() < quantity) {
-            throw new RuntimeException("Not enough stock. Available: " + book.getStock());
+            throw new InsufficientStockException("Not enough stock. Available: " + book.getStock());
         }
         book.reduceStock(quantity);
         bookRepository.save(book);
         log.info("✅ Stock deducted successfully. Book: {}, New stock: {}, Version: {}",
                 book.getTitle(), book.getStock(), book.getVersion());
-        return book;
     }
 
     @Retryable(

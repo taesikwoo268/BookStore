@@ -36,7 +36,8 @@ public class Order {
     @Column(name = "total_amount", precision = 10, scale = 2)
     private BigDecimal totalAmount;
 
-    @Column(length = 20)
+    @Column(name = "status", length = 20, nullable = false)
+    @Enumerated(EnumType.STRING)
     private OrderStatus status;
 
     @Column(name = "shipping_address", columnDefinition = "TEXT")

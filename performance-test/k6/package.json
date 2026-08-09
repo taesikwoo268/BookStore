@@ -1,0 +1,15 @@
+{
+  "name": "bookstore-k6-tests",
+  "version": "1.0.0",
+  "description": "Performance tests for BookStore using k6",
+  "scripts": {
+    "test:smoke": "k6 run scripts/smoke-test.js",
+    "test:load": "k6 run scripts/checkout-test.js",
+    "test:stress": "k6 run scripts/stress-test.js",
+    "test:report": "k6 run --out json=results/results.json scripts/checkout-test.js",
+    "test:cloud": "k6 cloud scripts/checkout-test.js"
+  },
+  "devDependencies": {
+    "@types/k6": "^0.46.0"
+  }
+}

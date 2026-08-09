@@ -63,7 +63,6 @@ public class Book {
             throw new IllegalStateException("Not enough stock. Available: " + stock + ", Requested: " + quantity);
         }
         this.stock -= quantity;
-        this.salesCount = (this.salesCount != null ? this.salesCount : 0) + quantity;
     }
 
     public void increaseStock(int quantity) {
