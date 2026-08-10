@@ -42,6 +42,7 @@ public class OrderService {
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
     private final StockService stockService;
+    private final DiscountService discountService;
     private final IdempotencyService idempotencyService;
     private final ObjectMapper objectMapper;
     private final OrderEventPublisher orderEventPublisher;
@@ -70,6 +71,8 @@ public class OrderService {
         checkInventory(cart);
 
         Order order = createOrder(userId, cart, request);
+
+        order = discountService.applyDiscountToOrder(order);
 
         deductStock(cart);
 
