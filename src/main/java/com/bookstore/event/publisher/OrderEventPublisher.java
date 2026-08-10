@@ -52,12 +52,6 @@ public class OrderEventPublisher {
                     event
             );
 
-            rabbitTemplate.convertAndSend(
-                    orderExchange,
-                    "order.placed.notification", // ✅ Routing key cho notification
-                    event
-            );
-
             log.info("✅ OrderPlacedEvent published successfully: orderId={}, eventId={}",
                     order.getId(), event.getEventId());
 
