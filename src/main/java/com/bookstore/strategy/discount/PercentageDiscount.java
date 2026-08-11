@@ -1,4 +1,4 @@
-package com.bookstore.discount.strategy;
+package com.bookstore.strategy.discount;
 
 import com.bookstore.model.Order;
 import lombok.AllArgsConstructor;
@@ -11,23 +11,23 @@ import java.math.RoundingMode;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class FixedAmountDiscount implements DiscountStrategy {
-
-    private BigDecimal fixedAmount; // Số tiền cố định được giảm
+public class PercentageDiscount implements DiscountStrategy {
+    private BigDecimal percentage;
 
     @Override
     public BigDecimal calculateDiscount(Order order) {
-        if (!isApplicable(order)) {
+        if(!isApplicable(order)) {
             return BigDecimal.ZERO;
         }
-
         BigDecimal subtotal = order.getTotalAmount();
-        // Giảm tối đa bằng subtotal (không âm)
-        return fixedAmount.min(subtotal);
+        BigDecimal discount = subtotal.multiply(percentage)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+
+        return discount;
     }
 
     @Override
     public String getDescription() {
-        return String.format("Giảm cố định $%s", fixedAmount);
+        return String.format("Giảm %s%% trên tổng đơn hàng", percentage);
     }
 }

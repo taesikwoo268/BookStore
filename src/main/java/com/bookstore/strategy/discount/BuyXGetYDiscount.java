@@ -1,4 +1,4 @@
-package com.bookstore.discount.strategy;
+package com.bookstore.strategy.discount;
 
 import com.bookstore.model.Order;
 import com.bookstore.model.OrderItem;
@@ -8,8 +8,6 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.Comparator;
-import java.util.List;
 
 @Data
 @NoArgsConstructor

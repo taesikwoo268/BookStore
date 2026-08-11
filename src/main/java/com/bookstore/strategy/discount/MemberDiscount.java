@@ -1,4 +1,4 @@
-package com.bookstore.discount.strategy;
+package com.bookstore.strategy.discount;
 
 import com.bookstore.model.Order;
 import lombok.AllArgsConstructor;

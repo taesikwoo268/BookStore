@@ -1,6 +1,6 @@
-package com.bookstore.discount;
+package com.bookstore.strategy;
 
-import com.bookstore.discount.strategy.*;
+import com.bookstore.strategy.discount.*;
 import com.bookstore.model.Order;
 import com.bookstore.model.OrderItem;
 import com.bookstore.model.User;

@@ -1,10 +1,10 @@
 package com.bookstore.service;
 
-import com.bookstore.discount.DiscountContext;
-import com.bookstore.discount.strategy.BuyXGetYDiscount;
-import com.bookstore.discount.strategy.FixedAmountDiscount;
-import com.bookstore.discount.strategy.MemberDiscount;
-import com.bookstore.discount.strategy.PercentageDiscount;
+import com.bookstore.strategy.DiscountContext;
+import com.bookstore.strategy.discount.BuyXGetYDiscount;
+import com.bookstore.strategy.discount.FixedAmountDiscount;
+import com.bookstore.strategy.discount.MemberDiscount;
+import com.bookstore.strategy.discount.PercentageDiscount;
 import com.bookstore.model.Order;
 import com.bookstore.model.UserLoyalty;
 import com.bookstore.repository.UserLoyaltyRepository;

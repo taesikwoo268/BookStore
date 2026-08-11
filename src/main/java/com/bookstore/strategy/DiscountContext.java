@@ -1,6 +1,6 @@
-package com.bookstore.discount;
+package com.bookstore.strategy;
 
-import com.bookstore.discount.strategy.DiscountStrategy;
+import com.bookstore.strategy.discount.DiscountStrategy;
 import com.bookstore.model.Order;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

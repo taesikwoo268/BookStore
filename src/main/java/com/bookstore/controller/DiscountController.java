@@ -1,7 +1,7 @@
 package com.bookstore.controller;
 
-import com.bookstore.discount.DiscountContext;
-import com.bookstore.discount.strategy.*;
+import com.bookstore.strategy.DiscountContext;
+import com.bookstore.strategy.discount.*;
 import com.bookstore.dto.response.ApiResponse;
 import com.bookstore.service.DiscountService;
 import lombok.RequiredArgsConstructor;
