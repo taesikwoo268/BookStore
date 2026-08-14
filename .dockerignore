@@ -1,0 +1,51 @@
+# Git
+.git/
+.gitignore
+
+# Build
+target/
+*.jar
+*.war
+*.ear
+*.class
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.project
+.classpath
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+*.pem
+*.key
+*.jks
+*.crt
+
+# Test
+src/test/
+
+# Node modules (nếu có)
+node_modules/
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# Maven wrapper
+.mvn/
+mvnw
+mvnw.cmd
+
+# Application properties (sensitive)
+src/main/resources/application-prod.properties

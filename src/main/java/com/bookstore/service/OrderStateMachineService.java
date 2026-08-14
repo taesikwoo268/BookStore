@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 @Slf4j
 public class OrderStateMachineService {
-    private OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
     private final OrderStateTransitionFactory transitionFactory;
 
     @Transactional
@@ -97,6 +97,12 @@ public class OrderStateMachineService {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
         return transitionTo(order, OrderStatus.REFUNDED, "Refund processed");
+    }
+
+    public boolean canTransitionTo(Long orderId, OrderStatus targetStatus) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        return transitionFactory.isValidTransition(order.getStatus(), targetStatus);
     }
 
 }
