@@ -67,6 +67,7 @@ public class InventoryReservedConsumer {
         } catch (Exception e) {
             log.error("❌ [InventoryReservedConsumer] Failed to update inventory for order {}: {}",
                     event.getOrderId(), e.getMessage(), e);
+            throw e;
         }
     }
 }

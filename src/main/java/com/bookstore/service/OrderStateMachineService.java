@@ -4,6 +4,7 @@ import com.bookstore.enums.OrderStatus;
 import com.bookstore.exception.InvalidStateTransitionException;
 import com.bookstore.model.Order;
 import com.bookstore.repository.OrderRepository;
+import com.bookstore.strategy.OrderStateTransitionFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,8 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 @Slf4j
 public class OrderStateMachineService {
-    private OrderRepository orderRepository;
+    private final OrderRepository orderRepository;
+    private final OrderStateTransitionFactory transitionFactory;
 
     @Transactional
     public Order transitionTo(Long orderId, OrderStatus targetStatus,String reason) {
@@ -28,7 +30,7 @@ public class OrderStateMachineService {
     public Order transitionTo (Order order, OrderStatus targetStatus,String reason) {
         OrderStatus currentStatus = order.getStatus();
 
-        if (!currentStatus.canTransitionTo(targetStatus)) {
+        if (!transitionFactory.isValidTransition(currentStatus,targetStatus)) {
             log.warn("❌ Invalid transition: {} → {}", currentStatus, targetStatus);
             throw new InvalidStateTransitionException(
                     currentStatus.name(),
@@ -38,59 +40,42 @@ public class OrderStateMachineService {
             );
         }
 
-        OrderStatus oldStatus = order.getStatus();
-        order.setStatus(targetStatus);
+        var strategy = transitionFactory.getTransition(currentStatus,targetStatus);
+        log.info("🔄 Using strategy: {} for order {}",
+                strategy.getClass().getSimpleName(), order.getId());
 
-        switch (targetStatus) {
-            case CONFIRMED:
-                order.setConfirmedAt(LocalDateTime.now());
-                break;
-            case PROCESSING:
-                order.setProcessingAt(LocalDateTime.now());
-                break;
-            case SHIPPED:
-                order.setShippedAt(LocalDateTime.now());
-                break;
-            case DELIVERED:
-                order.setDeliveredAt(LocalDateTime.now());
-                break;
-            case CANCELLED:
-                order.setCancelledAt(LocalDateTime.now());
-                break;
-            case REFUNDED:
-                order.setRefundedAt(LocalDateTime.now());
-                break;
-            default:
-                break;
-        }
-        Order savedOrder = orderRepository.save(order);
-        log.info("✅ Order {} transitioned: {} → {} (reason: {})",
-                order.getId(), oldStatus, targetStatus, reason != null ? reason : "N/A");
-
-        return savedOrder;
+        return strategy.execute(order, targetStatus, reason);
     }
 
-    /**
-     * Xác nhận đơn hàng (PENDING → CONFIRMED)
-     */
+    @Transactional
     public Order confirmOrder(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
-
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new InvalidStateTransitionException(
-                    order.getStatus().name(),
-                    OrderStatus.CONFIRMED.name(),
-                    "Only PENDING orders can be confirmed"
-            );
-        }
-
         return transitionTo(order, OrderStatus.CONFIRMED, "Admin confirmed");
     }
 
-    /**
-     * Hủy đơn hàng (PENDING/CONFIRMED/PROCESSING → CANCELLED)
-     */
+    @Transactional
+    public Order processOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        return transitionTo(order, OrderStatus.PROCESSING, "Start processing");
+    }
+
+    @Transactional
+    public Order shipOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        return transitionTo(order, OrderStatus.SHIPPED, "Order shipped");
+    }
+
+    @Transactional
+    public Order deliverOrder(Long orderId) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        return transitionTo(order, OrderStatus.DELIVERED, "Customer received");
+    }
+
+    @Transactional
     public Order cancelOrder(Long orderId, String reason) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
@@ -103,24 +88,21 @@ public class OrderStateMachineService {
             );
         }
 
-        return transitionTo(order, OrderStatus.CANCELLED, reason);
+        String cancelReason = reason != null ? reason : "Cancelled by user";
+        return transitionTo(order, OrderStatus.CANCELLED, cancelReason);
     }
 
-    /**
-     * Giao hàng (SHIPPED → DELIVERED)
-     */
-    public Order deliverOrder(Long orderId) {
+    @Transactional
+    public Order refundOrder(Long orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
-
-        if (order.getStatus() != OrderStatus.SHIPPED) {
-            throw new InvalidStateTransitionException(
-                    order.getStatus().name(),
-                    OrderStatus.DELIVERED.name(),
-                    "Only SHIPPED orders can be delivered"
-            );
-        }
-
-        return transitionTo(order, OrderStatus.DELIVERED, "Customer received");
+        return transitionTo(order, OrderStatus.REFUNDED, "Refund processed");
     }
+
+    public boolean canTransitionTo(Long orderId, OrderStatus targetStatus) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new RuntimeException("Order not found: " + orderId));
+        return transitionFactory.isValidTransition(order.getStatus(), targetStatus);
+    }
+
 }

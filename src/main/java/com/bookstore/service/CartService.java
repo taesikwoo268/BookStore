@@ -66,7 +66,7 @@ public class CartService {
         if (existingItem != null) {
             int newQuantity = existingItem.getQuantity() + request.getQuantity();
             if (book.getStock() < newQuantity) {
-                throw new RuntimeException("Not enough stock. Available: " + book.getStock());
+                throw new RuntimeException("Not enough stock. Available: " + book.getStock() + ", Request: " + newQuantity);
             }
             existingItem.setQuantity(newQuantity);
             cartItemRepository.save(existingItem);

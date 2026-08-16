@@ -1,6 +1,7 @@
 package com.bookstore.event.publisher;
 
 import com.bookstore.event.OrderPlacedEvent;
+import com.bookstore.event.OrderSubject;
 import com.bookstore.model.Order;
 import com.bookstore.model.OrderItem;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.stream.Collectors;
 public class OrderEventPublisher {
 
     private final RabbitTemplate rabbitTemplate;
+    private final OrderSubject orderSubject;
 
     @Value("${rabbitmq.exchange.order}")
     private String orderExchange;
@@ -30,9 +32,9 @@ public class OrderEventPublisher {
     public void publishOrderPlacedEvent(Order order) {
         log.info("📤 Publishing OrderPlacedEvent for order: {}", order.getId());
 
-        try {
-            OrderPlacedEvent event = buildOrderPlacedEvent(order);
+        OrderPlacedEvent event = buildOrderPlacedEvent(order);
 
+        try {
             // Publish message
             rabbitTemplate.convertAndSend(
                     orderExchange,
@@ -52,12 +54,6 @@ public class OrderEventPublisher {
                     event
             );
 
-            rabbitTemplate.convertAndSend(
-                    orderExchange,
-                    "order.placed.notification", // ✅ Routing key cho notification
-                    event
-            );
-
             log.info("✅ OrderPlacedEvent published successfully: orderId={}, eventId={}",
                     order.getId(), event.getEventId());
 
@@ -65,6 +61,8 @@ public class OrderEventPublisher {
             log.error("❌ Failed to publish OrderPlacedEvent: {}", e.getMessage(), e);
             // Không throw exception để không ảnh hưởng đến flow checkout
         }
+
+        orderSubject.notifyObservers(event);
     }
 
     /**
