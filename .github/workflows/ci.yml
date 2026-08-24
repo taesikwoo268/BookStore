@@ -71,19 +71,6 @@ jobs:
           restore-keys: ${{ runner.os }}-m2
 
       # ===== 4. Wait for services =====
-      - name: Wait for MySQL
-        run: |
-          while ! mysqladmin ping -h localhost -uroot -p3636 --silent; do
-            echo "Waiting for MySQL..."
-            sleep 2
-          done
-
-      - name: Wait for Redis
-        run: |
-          while ! redis-cli -h localhost ping; do
-            echo "Waiting for Redis..."
-            sleep 2
-          done
 
       # ===== 5. Run tests =====
       - name: Run tests with coverage
