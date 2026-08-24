@@ -11,7 +11,7 @@ services:
     container_name: bookstore-app
     restart: unless-stopped
     ports:
-      - "8082:8080"
+      - "8083:8080"
     environment:
       SPRING_PROFILES_ACTIVE: docker
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/bookstore?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC

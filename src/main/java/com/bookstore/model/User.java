@@ -48,6 +48,21 @@ public class User {
     @Column(name = "last_login")
     private Instant lastLogin;
 
+    // ===== OAUTH2 FIELDS =====
+    @Column(name = "provider", length = 20)
+    private String provider;  // "google", "facebook", "github"
+
+    @Column(name = "provider_id", length = 100)
+    private String providerId;
+
+    @Column(name = "avatar_url", length = 255)
+    private String avatarUrl;
+
+    @Column(name = "email_verified")
+    @Builder.Default
+    private Boolean emailVerified = false;
+
+
     // Quan hệ với Roles (Many-to-Many)
     @JsonIgnore
     @ManyToMany(fetch = FetchType.EAGER)
