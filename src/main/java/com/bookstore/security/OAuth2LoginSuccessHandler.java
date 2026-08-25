@@ -1,6 +1,5 @@
 package com.bookstore.security;
 
-import com.bookstore.security.JwtTokenProvider;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -18,7 +17,7 @@ import java.io.IOException;
 @Slf4j
 public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
 
-    private final JwtTokenProvider jwtTokenProvider;
+    private final JwtRsaProvider jwtRsaProvider;
 
     @Value("${app.oauth2.success-url:http://localhost:3000/oauth2/redirect}")
     private String successUrl;
@@ -34,8 +33,8 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         CustomOAuth2User oAuth2User = (CustomOAuth2User) authentication.getPrincipal();
 
         // 2. Tạo JWT token
-        String accessToken = jwtTokenProvider.generateAccessToken(oAuth2User.getName());
-        String refreshToken = jwtTokenProvider.generateRefreshToken(oAuth2User.getName());
+        String accessToken = jwtRsaProvider.generateAccessToken(oAuth2User.getName());
+        String refreshToken = jwtRsaProvider.generateRefreshToken(oAuth2User.getName());
 
         log.info("🔑 JWT tokens generated for OAuth2 user: {}", oAuth2User.getName());
 
