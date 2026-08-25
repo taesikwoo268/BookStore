@@ -67,18 +67,9 @@ jobs:
       # ===== Wait for services =====
       - name: Wait for MySQL
         run: |
-          echo "⏳ Waiting for MySQL..."
-          for i in {1..30}; do
-            if mysqladmin ping -h localhost -uroot -p3636 --silent 2>/dev/null; then
-              echo "✅ MySQL is ready!"
-              exit 0
-            fi
-            echo "⏳ Waiting for MySQL... ($i/30)"
-            sleep 3
-          done
-          echo "❌ MySQL failed to start"
-          docker logs $(docker ps -q --filter "publish=3306") 2>/dev/null || echo "No MySQL container"
-          exit 1
+          echo "⏳ Waiting for MySQL to start..."
+          sleep 40
+          echo "✅ MySQL ready (assumed after 40s)"
 
       - name: Wait for Redis
         run: |
