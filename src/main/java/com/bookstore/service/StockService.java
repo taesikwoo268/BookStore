@@ -27,7 +27,7 @@ public class StockService {
             backoff = @Backoff(delay = RETRY_DELAY, multiplier = 2)
     )
     @Transactional
-    public void deductStockWithRetry(Long bookId, int quantity) {
+    public Book deductStockWithRetry(Long bookId, int quantity) {
         log.info("📦 Deducting stock for bookId: {}, quantity: {}", bookId, quantity);
         Book book = bookRepository.findById(bookId)
                 .orElseThrow(() -> new BookNotFoundException("Book not found with id: " + bookId));
@@ -39,6 +39,7 @@ public class StockService {
         bookRepository.save(book);
         log.info("✅ Stock deducted successfully. Book: {}, New stock: {}, Version: {}",
                 book.getTitle(), book.getStock(), book.getVersion());
+        return book;
     }
 
     @Retryable(
