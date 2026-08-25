@@ -6,21 +6,22 @@ on:
   push:
     branches: [ main, develop ]
 
+# ✅ Permissions để comment PR
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
 
     services:
-      # ============================================================
-      # MYSQL
-      # ============================================================
       mysql:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: 3636
           MYSQL_DATABASE: bookstore
-          MYSQL_USER: bookstore_user
-          MYSQL_PASSWORD: 3636
         ports:
           - 3306:3306
         options: >-
@@ -30,9 +31,6 @@ jobs:
           --health-retries=20
           --health-start-period=30s
 
-      # ============================================================
-      # REDIS
-      # ============================================================
       redis:
         image: redis:7.2-alpine
         ports:
@@ -44,9 +42,6 @@ jobs:
           --health-retries=10
           --health-start-period=10s
 
-      # ============================================================
-      # RABBITMQ
-      # ============================================================
       rabbitmq:
         image: rabbitmq:3.13-management-alpine
         env:
@@ -77,36 +72,24 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      # ============================================================
-      # ✅ WAIT FOR MYSQL - Dùng sleep 30
-      # ============================================================
       - name: Wait for MySQL
         run: |
           echo "⏳ Waiting for MySQL to start..."
           sleep 30
           echo "✅ MySQL ready (after 30s sleep)"
 
-      # ============================================================
-      # ✅ WAIT FOR REDIS - Dùng sleep 15
-      # ============================================================
       - name: Wait for Redis
         run: |
           echo "⏳ Waiting for Redis to start..."
           sleep 15
           echo "✅ Redis ready (after 15s sleep)"
 
-      # ============================================================
-      # ✅ WAIT FOR RABBITMQ - Dùng sleep 20
-      # ============================================================
       - name: Wait for RabbitMQ
         run: |
           echo "⏳ Waiting for RabbitMQ to start..."
           sleep 20
           echo "✅ RabbitMQ ready (after 20s sleep)"
 
-      # ============================================================
-      # 🔍 DEBUG - Kiểm tra services đã sẵn sàng
-      # ============================================================
       - name: Debug - Verify services
         run: |
           echo "🔍 Verifying services..."
@@ -123,17 +106,11 @@ jobs:
           echo "📦 RabbitMQ:"
           curl -s -u admin:admin123 http://localhost:15672/api/health/checks/alarms | head -5
 
-      # ============================================================
-      # RUN TESTS
-      # ============================================================
       - name: Run tests
         env:
           SPRING_PROFILES_ACTIVE: ci
         run: mvn clean test jacoco:report
 
-      # ============================================================
-      # UPLOAD ARTIFACTS
-      # ============================================================
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -157,10 +134,16 @@ jobs:
             echo "coverage=0%" >> $GITHUB_OUTPUT
           fi
 
+      # ============================================================
+      # ✅ COMMENT COVERAGE ON PR (FIXED)
+      # ============================================================
       - name: Comment coverage on PR
         uses: actions/github-script@v6
-        if: github.event_name == 'pull_request'
+        if: |
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const coverage = '${{ steps.jacoco.outputs.coverage }}';
             const reportLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts`;
