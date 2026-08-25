@@ -1,4 +1,3 @@
-# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -12,29 +11,42 @@ jobs:
     runs-on: ubuntu-latest
 
     services:
+      # ============================================================
+      # MYSQL
+      # ============================================================
       mysql:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: 3636
           MYSQL_DATABASE: bookstore
+          MYSQL_USER: bookstore_user
+          MYSQL_PASSWORD: 3636
         ports:
           - 3306:3306
         options: >-
           --health-cmd="mysqladmin ping -h localhost -uroot -p3636"
           --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
+          --health-timeout=10s
+          --health-retries=20
+          --health-start-period=30s
 
+      # ============================================================
+      # REDIS
+      # ============================================================
       redis:
         image: redis:7.2-alpine
         ports:
           - 6379:6379
         options: >-
-          --health-cmd="redis-cli ping"
+          --health-cmd="redis-cli -a redis123 ping"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
+          --health-start-period=10s
 
+      # ============================================================
+      # RABBITMQ
+      # ============================================================
       rabbitmq:
         image: rabbitmq:3.13-management-alpine
         env:
@@ -42,11 +54,12 @@ jobs:
           RABBITMQ_DEFAULT_PASS: admin123
         ports:
           - 5672:5672
+          - 15672:15672
         options: >-
           --health-cmd="rabbitmq-diagnostics ping"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
 
     steps:
       - uses: actions/checkout@v4
@@ -64,16 +77,32 @@ jobs:
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      # ===== Wait for services =====
+      # ============================================================
+      # WAIT FOR MYSQL
+      # ============================================================
       - name: Wait for MySQL
         run: |
-          echo "⏳ Waiting for MySQL to start..."
-          sleep 40
-          echo "✅ MySQL ready (assumed after 40s)"
+          echo "⏳ Waiting for MySQL..."
+          for i in {1..30}; do
+            if mysqladmin ping -h localhost -uroot -p3636 --silent 2>/dev/null; then
+              echo "✅ MySQL is ready!"
+              exit 0
+            fi
+            echo "⏳ Waiting for MySQL... ($i/30)"
+            sleep 3
+          done
+          echo "❌ MySQL failed to start"
+          docker logs $(docker ps -q --filter "publish=3306") 2>/dev/null | tail -20
+          exit 1
 
+      # ============================================================
+      # WAIT FOR REDIS (FIXED)
+      # ============================================================
       - name: Wait for Redis
         run: |
           echo "⏳ Waiting for Redis..."
+          # Đợi container start
+          sleep 10
           for i in {1..20}; do
             if redis-cli -h localhost ping 2>/dev/null | grep -q PONG; then
               echo "✅ Redis is ready!"
@@ -83,8 +112,13 @@ jobs:
             sleep 2
           done
           echo "❌ Redis failed to start"
+          echo "🔍 Debug Redis:"
+          docker logs $(docker ps -q --filter "publish=6379") 2>/dev/null | tail -10
           exit 1
 
+      # ============================================================
+      # WAIT FOR RABBITMQ
+      # ============================================================
       - name: Wait for RabbitMQ
         run: |
           echo "⏳ Waiting for RabbitMQ..."
@@ -96,10 +130,11 @@ jobs:
             echo "⏳ Waiting for RabbitMQ... ($i/20)"
             sleep 3
           done
-          echo "❌ RabbitMQ failed to start"
           exit 1
 
-      # ===== Debug =====
+      # ============================================================
+      # DEBUG
+      # ============================================================
       - name: Debug - Show services
         run: |
           echo "🔍 Checking services..."
@@ -108,21 +143,28 @@ jobs:
           docker ps -a
           echo ""
           echo "📦 MySQL:"
-          mysqladmin ping -h localhost -uroot -p3636 --silent && echo "✅ MySQL is running" || echo "❌ MySQL not running"
+          mysqladmin ping -h localhost -uroot -p3636 --silent && echo "✅ MySQL OK" || echo "❌ MySQL NOT OK"
           echo ""
           echo "📦 Redis:"
-          redis-cli -h localhost ping && echo "✅ Redis is running" || echo "❌ Redis not running"
+          redis-cli -h localhost ping 2>/dev/null && echo "✅ Redis OK" || echo "❌ Redis NOT OK"
+          echo ""
+          echo "📦 Redis password test:"
+          redis-cli -h localhost -a redis123 ping 2>/dev/null && echo "✅ Redis with password OK" || echo "❌ Redis with password NOT OK"
           echo ""
           echo "📦 RabbitMQ:"
-          curl -s -u admin:admin123 http://localhost:15672/api/health/checks/alarms | head -20
+          curl -s -u admin:admin123 http://localhost:15672/api/health/checks/alarms | head -5
 
-      # ===== Run tests =====
+      # ============================================================
+      # RUN TESTS
+      # ============================================================
       - name: Run tests
         env:
           SPRING_PROFILES_ACTIVE: ci
         run: mvn clean test jacoco:report
 
-      # ===== Upload artifacts =====
+      # ============================================================
+      # UPLOAD ARTIFACTS
+      # ============================================================
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -136,17 +178,14 @@ jobs:
           name: jacoco-report
           path: target/site/jacoco/
 
-      # ===== Coverage comment =====
       - name: Generate JaCoCo Badge
         id: jacoco
         run: |
           if [ -f target/site/jacoco/index.html ]; then
             COVERAGE=$(grep -o '<tfoot>.*</tfoot>' target/site/jacoco/index.html | grep -o '[0-9]\+%' | head -1 || echo "0%")
             echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-            echo "📊 Coverage: $COVERAGE"
           else
             echo "coverage=0%" >> $GITHUB_OUTPUT
-            echo "⚠️ Coverage report not found"
           fi
 
       - name: Comment coverage on PR
@@ -155,27 +194,7 @@ jobs:
         with:
           script: |
             const coverage = '${{ steps.jacoco.outputs.coverage }}';
-            const reportLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts`;
-            
-            let status = '';
-            const covNum = parseInt(coverage);
-            if (covNum >= 80) {
-              status = '✅ **Great job! Coverage is above 80%**';
-            } else if (covNum >= 70) {
-              status = '⚠️ **Good! Consider adding more tests to reach 80%**';
-            } else {
-              status = '❌ **Coverage is below 70%. Please add more tests!**';
-            }
-            
-            const message = `## 📊 JaCoCo Code Coverage Report\n\n` +
-              `| Metric | Value |\n` +
-              `|--------|-------|\n` +
-              `| **Coverage** | **${coverage}** |\n` +
-              `| **CI Run** | [View details](${reportLink}) |\n\n` +
-              `### 📈 Coverage Status\n` +
-              `${status}\n\n` +
-              `> 📝 *This comment is automatically generated by GitHub Actions*`;
-            
+            const message = `## 📊 JaCoCo Code Coverage Report\n\n| Metric | Value |\n|--------|-------|\n| **Coverage** | **${coverage}** |\n\n> 📝 *Automatically generated*`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
