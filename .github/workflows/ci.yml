@@ -1,3 +1,4 @@
+# .github/workflows/ci.yml
 name: CI
 
 on:
@@ -8,7 +9,6 @@ on:
 
 jobs:
   build-and-test:
-    name: Build & Test
     runs-on: ubuntu-latest
 
     services:
@@ -23,7 +23,7 @@ jobs:
           --health-cmd="mysqladmin ping -h localhost -uroot -p3636"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=5
+          --health-retries=10
 
       redis:
         image: redis:7.2-alpine
@@ -42,7 +42,6 @@ jobs:
           RABBITMQ_DEFAULT_PASS: admin123
         ports:
           - 5672:5672
-          - 15672:15672
         options: >-
           --health-cmd="rabbitmq-diagnostics ping"
           --health-interval=10s
@@ -50,91 +49,145 @@ jobs:
           --health-retries=5
 
     steps:
-      # ===== 1. Checkout code =====
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ===== 2. Setup Java =====
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: maven
 
-      # ===== 3. Cache Maven dependencies =====
-      - name: Cache Maven dependencies
+      - name: Cache Maven
         uses: actions/cache@v3
         with:
           path: ~/.m2
           key: ${{ runner.os }}-m2-${{ hashFiles('**/pom.xml') }}
           restore-keys: ${{ runner.os }}-m2
 
-      # ===== 4. Wait for services =====
+      # ===== Wait for services =====
+      - name: Wait for MySQL
+        run: |
+          echo "⏳ Waiting for MySQL..."
+          for i in {1..30}; do
+            if mysqladmin ping -h localhost -uroot -p3636 --silent 2>/dev/null; then
+              echo "✅ MySQL is ready!"
+              exit 0
+            fi
+            echo "⏳ Waiting for MySQL... ($i/30)"
+            sleep 3
+          done
+          echo "❌ MySQL failed to start"
+          docker logs $(docker ps -q --filter "publish=3306") 2>/dev/null || echo "No MySQL container"
+          exit 1
 
-      # ===== 5. Run tests =====
-      - name: Run tests with coverage
+      - name: Wait for Redis
+        run: |
+          echo "⏳ Waiting for Redis..."
+          for i in {1..20}; do
+            if redis-cli -h localhost ping 2>/dev/null | grep -q PONG; then
+              echo "✅ Redis is ready!"
+              exit 0
+            fi
+            echo "⏳ Waiting for Redis... ($i/20)"
+            sleep 2
+          done
+          echo "❌ Redis failed to start"
+          exit 1
+
+      - name: Wait for RabbitMQ
+        run: |
+          echo "⏳ Waiting for RabbitMQ..."
+          for i in {1..20}; do
+            if curl -s -u admin:admin123 http://localhost:15672/api/health/checks/alarms 2>/dev/null | grep -q '"status":"ok"'; then
+              echo "✅ RabbitMQ is ready!"
+              exit 0
+            fi
+            echo "⏳ Waiting for RabbitMQ... ($i/20)"
+            sleep 3
+          done
+          echo "❌ RabbitMQ failed to start"
+          exit 1
+
+      # ===== Debug =====
+      - name: Debug - Show services
+        run: |
+          echo "🔍 Checking services..."
+          echo ""
+          echo "📦 Docker containers:"
+          docker ps -a
+          echo ""
+          echo "📦 MySQL:"
+          mysqladmin ping -h localhost -uroot -p3636 --silent && echo "✅ MySQL is running" || echo "❌ MySQL not running"
+          echo ""
+          echo "📦 Redis:"
+          redis-cli -h localhost ping && echo "✅ Redis is running" || echo "❌ Redis not running"
+          echo ""
+          echo "📦 RabbitMQ:"
+          curl -s -u admin:admin123 http://localhost:15672/api/health/checks/alarms | head -20
+
+      # ===== Run tests =====
+      - name: Run tests
+        env:
+          SPRING_PROFILES_ACTIVE: ci
         run: mvn clean test jacoco:report
 
-#      # ===== 6. Generate JaCoCo report =====
-#      - name: Generate JaCoCo Badge
-#        id: jacoco
-#        run: |
-#          if [ -f target/site/jacoco/index.html ]; then
-#            # Extract coverage percentage
-#            COVERAGE=$(grep -o '<tfoot>.*</tfoot>' target/site/jacoco/index.html | grep -o '[0-9]\+%' | head -1 || echo "0%")
-#            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
-#            echo "Coverage: $COVERAGE"
-#          else
-#            echo "coverage=0%" >> $GITHUB_OUTPUT
-#            echo "Coverage report not found"
-#          fi
+      # ===== Upload artifacts =====
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: target/surefire-reports/
 
-#      # ===== 7. Upload JaCoCo report as artifact =====
-#      - name: Upload JaCoCo report
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: jacoco-report
-#          path: target/site/jacoco/
+      - name: Upload JaCoCo report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
 
-#      # ===== 8. Comment coverage on PR =====
-#      - name: Comment coverage on PR
-#        uses: actions/github-script@v6
-#        if: github.event_name == 'pull_request'
-#        with:
-#          script: |
-#            const coverage = '${{ steps.jacoco.outputs.coverage }}';
-#            const reportLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts`;
-#
-#            const message = `## 📊 JaCoCo Code Coverage Report
-#
-#            | Metric | Value |
-#            |--------|-------|
-#            | **Coverage** | **${coverage}** |
-#            | **CI Run** | [View details](${reportLink}) |
-#
-#            ### 📈 Coverage Status
-#            ${
-#              coverage !== '0%' && parseInt(coverage) >= 80
-#                ? '✅ **Great job! Coverage is above 80%**'
-#                : coverage !== '0%' && parseInt(coverage) >= 70
-#                ? '⚠️ **Good! Consider adding more tests to reach 80%**'
-#                : '❌ **Coverage is below 70%. Please add more tests!**'
-#            }
-#
-#            > 📝 *This comment is automatically generated by GitHub Actions*`;
-#
-#            github.rest.issues.createComment({
-#              issue_number: context.issue.number,
-#              owner: context.repo.owner,
-#              repo: context.repo.repo,
-#              body: message
-#            });
-#
-#      # ===== 9. Upload test results =====
-#      - name: Upload test results
-#        uses: actions/upload-artifact@v4
-#        if: always()
-#        with:
-#          name: test-results
-#          path: target/surefire-reports/
+      # ===== Coverage comment =====
+      - name: Generate JaCoCo Badge
+        id: jacoco
+        run: |
+          if [ -f target/site/jacoco/index.html ]; then
+            COVERAGE=$(grep -o '<tfoot>.*</tfoot>' target/site/jacoco/index.html | grep -o '[0-9]\+%' | head -1 || echo "0%")
+            echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+            echo "📊 Coverage: $COVERAGE"
+          else
+            echo "coverage=0%" >> $GITHUB_OUTPUT
+            echo "⚠️ Coverage report not found"
+          fi
+
+      - name: Comment coverage on PR
+        uses: actions/github-script@v6
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const coverage = '${{ steps.jacoco.outputs.coverage }}';
+            const reportLink = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts`;
+            
+            let status = '';
+            const covNum = parseInt(coverage);
+            if (covNum >= 80) {
+              status = '✅ **Great job! Coverage is above 80%**';
+            } else if (covNum >= 70) {
+              status = '⚠️ **Good! Consider adding more tests to reach 80%**';
+            } else {
+              status = '❌ **Coverage is below 70%. Please add more tests!**';
+            }
+            
+            const message = `## 📊 JaCoCo Code Coverage Report\n\n` +
+              `| Metric | Value |\n` +
+              `|--------|-------|\n` +
+              `| **Coverage** | **${coverage}** |\n` +
+              `| **CI Run** | [View details](${reportLink}) |\n\n` +
+              `### 📈 Coverage Status\n` +
+              `${status}\n\n` +
+              `> 📝 *This comment is automatically generated by GitHub Actions*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: message
+            });
