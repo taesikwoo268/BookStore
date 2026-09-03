@@ -87,7 +87,7 @@ jobs:
         run: |
           echo "🏥 Waiting for app to start..."
           for i in {1..30}; do
-            if curl -f http://localhost:8080/actuator/health 2>/dev/null; then
+            if curl -f http://localhost:8083/actuator/health 2>/dev/null; then
               echo "✅ App is healthy! (attempt $i)"
               exit 0
             fi
